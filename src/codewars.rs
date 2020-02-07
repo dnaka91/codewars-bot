@@ -126,3 +126,13 @@ pub struct Unresolved {
     pub issues: u32,
     pub suggestions: u32,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_lazy() {
+        Lazy::force(&BASE_URL);
+    }
+}

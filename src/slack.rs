@@ -144,3 +144,13 @@ pub struct Edited {
 pub struct File {
     id: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_lazy() {
+        Lazy::force(&BASE_URL);
+    }
+}

@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
     let resp: slack::ConnectResponse = reqwest::Client::new()
         .post(slack::BASE_URL.join(slack::RTM_CONNECT)?)
         .form(&slack::RtmConnect {
-            token: std::env::var("SLACK_TOKEN").unwrap(),
+            token: std::env::var("SLACK_TOKEN")?,
             ..slack::RtmConnect::default()
         })
         .send()
@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     let (ws, _) = tokio_tungstenite::connect_async(&resp.url).await?;
     let (mut write, read) = ws.split();
 
-    write.send(Message::Pong(Vec::new())).await.unwrap();
+    write.send(Message::Pong(Vec::new())).await?;
 
     read.map_err(Error::from)
         .try_for_each(|message| async {
