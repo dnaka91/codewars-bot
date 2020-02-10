@@ -2,10 +2,12 @@
 #![deny(clippy::all, clippy::pedantic)]
 #![warn(clippy::nursery)]
 
-use anyhow::{Error, Result};
+use std::env;
+
+use anyhow::Result;
 use futures::prelude::*;
+use log::{debug, info};
 use serde::de::DeserializeOwned;
-use tokio_tungstenite::tungstenite::Message;
 
 use crate::codewars::{AuthoredChallenges, CodeChallenge, CompletedChallenges, User, BASE_URL};
 
@@ -15,8 +17,9 @@ mod slack;
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv()?;
+    pretty_env_logger::try_init()?;
 
-    println!(
+    debug!(
         "{:#?}",
         tokio::try_join!(
             get_data::<User>("users/dnaka91"),
@@ -26,40 +29,20 @@ async fn main() -> Result<()> {
         )?
     );
 
-    let resp: slack::ConnectResponse = reqwest::Client::new()
-        .post(slack::BASE_URL.join(slack::RTM_CONNECT)?)
-        .form(&slack::RtmConnect {
-            token: std::env::var("SLACK_TOKEN")?,
-            ..slack::RtmConnect::default()
-        })
-        .send()
-        .await?
-        .json()
-        .await?;
+    debug!("{:#?}", slack::users_conversations().await?);
 
-    println!("{:#?}", resp);
+    let (_, mut r) = slack::rtm_connect().await?;
+    let target_channel = env::var("SLACK_CHANNEL")?;
 
-    let (ws, _) = tokio_tungstenite::connect_async(&resp.url).await?;
-    let (mut write, read) = ws.split();
+    while let Some(event) = r.next().await {
+        info!("EVENT {:?}", event);
 
-    write.send(Message::Pong(Vec::new())).await?;
-
-    read.map_err(Error::from)
-        .try_for_each(|message| async {
-            match message {
-                Message::Text(msg) => {
-                    let message = serde_json::from_str::<slack::Event>(&msg)?;
-
-                    println!("TEXT {:#?}", message);
-                }
-                Message::Binary(msg) => println!("BINARY {:?}", msg),
-                Message::Ping(msg) => println!("PING {:?}", msg),
-                Message::Pong(msg) => println!("PONG {:?}", msg),
-                Message::Close(msg) => println!("CLOSE {:?}", msg),
-            };
-            Ok(())
-        })
-        .await?;
+        if let slack::Event::Message { channel,user, text, .. } = event {
+            if channel == target_channel && text.starts_with("!codewars-bot") {
+                slack::chat_post_message(&channel, &format!("<@{}> Hey there", user)).await?;
+            }
+        }
+    }
 
     Ok(())
 }
