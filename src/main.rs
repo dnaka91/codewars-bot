@@ -37,7 +37,13 @@ async fn main() -> Result<()> {
     while let Some(event) = r.next().await {
         info!("EVENT {:?}", event);
 
-        if let slack::Event::Message { channel,user, text, .. } = event {
+        if let slack::Event::Message {
+            channel,
+            user,
+            text,
+            ..
+        } = event
+        {
             if channel == target_channel && text.starts_with("!codewars-bot") {
                 slack::chat_post_message(&channel, &format!("<@{}> Hey there", user)).await?;
             }
