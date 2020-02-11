@@ -9,7 +9,12 @@ use futures::prelude::*;
 use log::{debug, info};
 
 mod codewars;
+mod commands;
 mod slack;
+
+use crate::commands::Command;
+
+const STARTER:&str = "!codewars-bot ";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -50,13 +55,20 @@ async fn main() -> Result<()> {
 
         if let slack::Event::Message {
             channel,
-            user,
             text,
             ..
         } = event
         {
-            if channel == target_channel && text.starts_with("!codewars-bot") {
-                slack::chat_post_message(&channel, &format!("<@{}> Hey there", user)).await?;
+            if channel == target_channel && text.starts_with(STARTER) {
+                let response = match commands::parse(&text[STARTER.len()..]) {
+                    Ok(cmd) => match cmd {
+                        Command::AddUser(username) => format!("Added user `{}` to watchlist", username),
+                        Command::RemoveUser(username) => format!("Removed user `{}` from watchlist", username),
+                        Command::Stats => "Here are the current statistics: ...".to_owned()
+                    }
+                    Err(e) => format!("Unknown command: {}", e)
+                };
+                slack::chat_post_message(&channel, &response).await?;
             }
         }
     }

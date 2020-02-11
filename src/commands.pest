@@ -1,0 +1,9 @@
+username = @{ (ASCII_ALPHANUMERIC | PUNCTUATION)+ }
+add = { "add" ~ username }
+remove = { ("remove" | "rm") ~ username }
+
+stats = { "stats" }
+
+command = { SOI ~ (add | remove | stats) ~ EOI }
+
+WHITESPACE = _{ " " }
