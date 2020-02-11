@@ -7,9 +7,6 @@ use std::env;
 use anyhow::Result;
 use futures::prelude::*;
 use log::{debug, info};
-use serde::de::DeserializeOwned;
-
-use crate::codewars::{AuthoredChallenges, CodeChallenge, CompletedChallenges, User, BASE_URL};
 
 mod codewars;
 mod slack;
@@ -19,14 +16,28 @@ async fn main() -> Result<()> {
     dotenv::dotenv()?;
     pretty_env_logger::try_init()?;
 
+    for user in &[
+        "dnaka91",
+        "cschappert",
+        "kitasuna",
+        "gwoolhurme",
+        "ddellacosta",
+        "cdepillabout",
+    ] {
+        debug!("################### {} ###################", user);
+        debug!(
+            "{:#?}",
+            tokio::try_join!(
+                codewars::user(user),
+                codewars::completed_challenges(user),
+                codewars::authored_challenges(user),
+            )?
+        );
+    }
+
     debug!(
         "{:#?}",
-        tokio::try_join!(
-            get_data::<User>("users/dnaka91"),
-            get_data::<CompletedChallenges>("users/dnaka91/code-challenges/completed"),
-            get_data::<AuthoredChallenges>("users/dnaka91/code-challenges/authored"),
-            get_data::<CodeChallenge>("code-challenges/multiples-of-3-or-5")
-        )?
+        codewars::code_challenge("multiples-of-3-or-5").await?
     );
 
     debug!("{:#?}", slack::users_conversations().await?);
@@ -51,13 +62,4 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-async fn get_data<T: DeserializeOwned>(path: &str) -> Result<T> {
-    Ok(reqwest::Client::new()
-        .get(BASE_URL.join(path)?)
-        .send()
-        .await?
-        .json()
-        .await?)
 }

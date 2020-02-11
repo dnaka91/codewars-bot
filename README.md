@@ -13,7 +13,7 @@ an `.env` file. The required variables are as follows:\
 
 | Variable      | Description                                                           |
 | ------------- | --------------------------------------------------------------------- |
-| SLACK_TOKEN   | A Slack legacy (yes, legacy 👻) token to authenticate the bot.           |
+| SLACK_TOKEN   | A Slack legacy (yes, legacy 👻) token to authenticate the bot.        |
 | SLACK_CHANNEL | Channel ID where you want this bot to send your team messages.        |
 | RUST_LOG      | Configuration for the logger. Set this to `codewars_bot` to see logs. |
 

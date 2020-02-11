@@ -1,21 +1,23 @@
 use std::collections::{HashMap, HashSet};
 
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use url::Url;
 
-pub static BASE_URL: Lazy<Url> = Lazy::new(|| Url::parse("https://codewars.com/api/v1/").unwrap());
+static BASE_URL: Lazy<Url> = Lazy::new(|| Url::parse("https://codewars.com/api/v1/").unwrap());
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
     pub username: String,
-    pub name: String,
+    pub name: Option<String>,
     pub honor: u32,
     pub clan: String,
     pub leaderboard_position: Option<u32>,
-    pub skills: HashSet<String>,
+    pub skills: Option<HashSet<String>>,
     pub ranks: Ranks,
     pub code_challenges: CodeChallenges,
 }
@@ -55,8 +57,8 @@ pub struct CompletedChallenges {
 #[serde(rename_all = "camelCase")]
 pub struct CompletedChallenge {
     pub id: String,
-    pub name: String,
-    pub slug: String,
+    pub name: Option<String>,
+    pub slug: Option<String>,
     pub completed_at: DateTime<Utc>,
     pub completed_languages: HashSet<String>,
 }
@@ -125,6 +127,31 @@ pub struct ShortUser {
 pub struct Unresolved {
     pub issues: u32,
     pub suggestions: u32,
+}
+
+pub async fn user(username: &str) -> Result<User> {
+    get_data(&format!("users/{}", username)).await
+}
+
+pub async fn completed_challenges(username: &str) -> Result<CompletedChallenges> {
+    get_data(&format!("users/{}/code-challenges/completed", username)).await
+}
+
+pub async fn authored_challenges(username: &str) -> Result<AuthoredChallenges> {
+    get_data(&format!("users/{}/code-challenges/authored", username)).await
+}
+
+pub async fn code_challenge(slug_or_id: &str) -> Result<CodeChallenge> {
+    get_data(&format!("code-challenges/{}", slug_or_id)).await
+}
+
+async fn get_data<T: DeserializeOwned>(path: &str) -> Result<T> {
+    Ok(reqwest::Client::new()
+        .get(BASE_URL.join(path)?)
+        .send()
+        .await?
+        .json()
+        .await?)
 }
 
 #[cfg(test)]
