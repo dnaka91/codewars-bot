@@ -6,7 +6,9 @@ use std::env;
 
 use anyhow::Result;
 use futures::prelude::*;
-use log::{debug, info};
+use log::info;
+use structopt::clap::AppSettings;
+use structopt::StructOpt;
 
 mod codewars;
 mod commands;
@@ -16,40 +18,73 @@ mod storage;
 use crate::commands::Command;
 use crate::storage::Repository;
 
+const SETTINGS_FILE: &str = "settings.toml";
 const STARTER: &str = "!codewars-bot ";
+
+#[derive(Debug, StructOpt)]
+#[structopt(setting = AppSettings::ColoredHelp)]
+struct Opt {
+    #[structopt(subcommand)]
+    cmd: Option<Subcommand>,
+}
+
+#[derive(Debug, StructOpt)]
+enum Subcommand {
+    /// List all available channels with their corresponding ID.
+    #[structopt(setting = AppSettings::ColoredHelp)]
+    Channels,
+    /// Test the current settings for debugging.
+    #[structopt(setting = AppSettings::ColoredHelp)]
+    TestSettings,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv()?;
     pretty_env_logger::try_init()?;
 
-    for user in &[
-        "dnaka91",
-        "cschappert",
-        "kitasuna",
-        "gwoolhurme",
-        "ddellacosta",
-        "cdepillabout",
-    ] {
-        debug!("################### {} ###################", user);
-        debug!(
-            "{:#?}",
-            tokio::try_join!(
-                codewars::user(user),
-                codewars::completed_challenges(user),
-                codewars::authored_challenges(user),
-            )?
-        );
+    let opt: Opt = Opt::from_args();
+
+    if let Some(cmd) = opt.cmd {
+        match cmd {
+            Subcommand::Channels => list_channels().await?,
+            Subcommand::TestSettings => test_settings().await?,
+        }
+        return Ok(());
     }
 
-    debug!(
-        "{:#?}",
-        codewars::code_challenge("multiples-of-3-or-5").await?
-    );
+    run().await?;
 
-    debug!("{:#?}", slack::users_conversations().await?);
+    Ok(())
+}
 
-    let mut settings = Repository::load("settings.toml").await?;
+async fn list_channels() -> Result<()> {
+    let mut channels = slack::users_conversations().await?;
+    channels.sort_by(|a, b| a.name.cmp(&b.name));
+
+    for channel in channels {
+        println!("{} {}", channel.id, channel.name);
+    }
+
+    Ok(())
+}
+
+async fn test_settings() -> Result<()> {
+    let settings = Repository::load(SETTINGS_FILE).await?;
+    for user in settings.users() {
+        info!("loading codewars user data for `{}`", user);
+        tokio::try_join!(
+            codewars::user(user),
+            codewars::completed_challenges(user),
+            codewars::authored_challenges(user),
+        )?;
+    }
+
+    Ok(())
+}
+
+async fn run() -> Result<()> {
+    let mut settings = Repository::load(SETTINGS_FILE).await?;
 
     let (_, mut r) = slack::rtm_connect().await?;
     let target_channel = env::var("SLACK_CHANNEL")?;
