@@ -1,10 +1,11 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::all, clippy::pedantic)]
 #![warn(clippy::nursery)]
+#![allow(dead_code)]
 
 use std::env;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use futures::prelude::*;
 use log::info;
 use structopt::clap::AppSettings;
@@ -19,7 +20,6 @@ use crate::commands::Command;
 use crate::storage::Repository;
 
 const SETTINGS_FILE: &str = "settings.toml";
-const STARTER: &str = "!codewars-bot ";
 
 #[derive(Debug, StructOpt)]
 #[structopt(setting = AppSettings::ColoredHelp)]
@@ -86,6 +86,13 @@ async fn test_settings() -> Result<()> {
 async fn run() -> Result<()> {
     let mut settings = Repository::load(SETTINGS_FILE).await?;
 
+    let bot_user = slack::users_list()
+        .await?
+        .into_iter()
+        .find(|u| !u.deleted && u.is_bot && u.name == "codewarsbot")
+        .context("bot user ID not found for `codewarsbot`")?;
+    let prefix = format!("<@{}> ", bot_user.id);
+
     let (_, mut r) = slack::rtm_connect().await?;
     let target_channel = env::var("SLACK_CHANNEL")?;
 
@@ -93,8 +100,8 @@ async fn run() -> Result<()> {
         info!("EVENT {:?}", event);
 
         if let slack::Event::Message { channel, text, .. } = event {
-            if channel == target_channel && text.starts_with(STARTER) {
-                let response = match commands::parse(&text[STARTER.len()..]) {
+            if channel == target_channel && text.starts_with(&prefix) {
+                let response = match commands::parse(&text[prefix.len()..]) {
                     Ok(cmd) => match cmd {
                         Command::AddUser(username) => {
                             settings.add_user(&username).await?;
@@ -104,11 +111,46 @@ async fn run() -> Result<()> {
                             settings.remove_user(&username).await?;
                             format!("Removed user `{}` from watchlist", username)
                         }
-                        Command::Stats => "Here are the current statistics: ...".to_owned(),
+                        Command::Stats => {
+                            let mut response = String::from("Here are the current statistics:");
+                            for user in settings.users() {
+                                let challenge_resp = codewars::completed_challenges(user).await?;
+                                let mut challenges = challenge_resp.data;
+                                challenges.sort_by(|a, b| a.completed_at.cmp(&b.completed_at));
+                                challenges.reverse();
+
+                                response.push_str(&format!(
+                                    "\n\n`{}` - {} total challenges",
+                                    user, challenge_resp.total_items
+                                ));
+
+                                challenges
+                                    .into_iter()
+                                    .take(3)
+                                    .filter_map(|c| {
+                                        if let Some(name) = c.name.as_ref() {
+                                            Some(format!(
+                                                "\n*{}* solved at _{}_ in *{}*",
+                                                name,
+                                                c.completed_at.format("%Y/%m/%d"),
+                                                c.completed_languages
+                                                    .into_iter()
+                                                    .collect::<Vec<_>>()
+                                                    .join(", ")
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .for_each(|s| response.push_str(&s));
+                            }
+
+                            response
+                        }
                     },
                     Err(e) => format!("Unknown command: {}", e),
                 };
-                slack::chat_post_message(&channel, &response).await?;
+                slack::webhook_message(&response).await?;
             }
         }
     }

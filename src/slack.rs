@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::env;
 
 use anyhow::{ensure, Result};
@@ -17,6 +15,7 @@ pub static BASE_URL: Lazy<Url> = Lazy::new(|| Url::parse("https://slack.com/api/
 pub const RTM_CONNECT: &str = "rtm.connect";
 pub const USERS_CONVERSATIONS: &str = "users.conversations";
 pub const CHAT_POST_MESSAGE: &str = "chat.postMessage";
+pub const USERS_LIST: &str = "users.list";
 
 #[derive(Debug, Serialize)]
 pub struct RtmConnectRequest<'a> {
@@ -59,6 +58,25 @@ pub struct ChatPostMessageRequest<'a> {
     pub username: Option<&'a str>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct UsersListRequest<'a> {
+    pub token: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UsersListResponse {
+    pub ok: bool,
+    pub members: Option<Vec<User>>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct User {
+    pub id: String,
+    pub deleted: bool,
+    pub name: String,
+    pub is_bot: bool,
+}
 #[derive(Debug, Deserialize)]
 pub struct ChatPostMessageResponse {
     pub ok: bool,
@@ -98,6 +116,12 @@ pub enum Event {
     },
 }
 
+#[derive(Debug, Serialize)]
+pub struct WebhookMessage<'a> {
+    pub text: &'a str,
+    pub blocks: Option<&'a [&'a Block<'a>]>,
+}
+
 pub async fn users_conversations() -> Result<Vec<Channel>> {
     let resp: UsersConversationsResponse = reqwest::Client::new()
         .post(BASE_URL.join(USERS_CONVERSATIONS)?)
@@ -115,6 +139,21 @@ pub async fn users_conversations() -> Result<Vec<Channel>> {
         resp.error
     );
     Ok(resp.channels.unwrap())
+}
+
+pub async fn users_list() -> Result<Vec<User>> {
+    let resp: UsersListResponse = reqwest::Client::new()
+        .post(BASE_URL.join(USERS_LIST)?)
+        .form(&UsersListRequest {
+            token: &env::var("SLACK_BOT_TOKEN")?,
+        })
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    ensure!(resp.ok, "failed reading user list {:?}", resp.error);
+    Ok(resp.members.unwrap())
 }
 
 pub async fn chat_post_message(channel: &str, text: &str) -> Result<()> {
@@ -137,11 +176,22 @@ pub async fn chat_post_message(channel: &str, text: &str) -> Result<()> {
     Ok(())
 }
 
+pub async fn webhook_message(text: &str) -> Result<()> {
+    let resp = reqwest::Client::new()
+        .post(&env::var("SLACK_WEBHOOK")?)
+        .json(&WebhookMessage { text, blocks: None })
+        .send()
+        .await?;
+
+    ensure!(resp.status().is_success(), "failed posting to webhook");
+    Ok(())
+}
+
 pub async fn rtm_connect() -> Result<(UnboundedSender<Value>, UnboundedReceiver<Event>)> {
     let resp: RtmConnectResponse = reqwest::Client::new()
         .post(BASE_URL.join(RTM_CONNECT)?)
         .form(&RtmConnectRequest {
-            token: &env::var("SLACK_TOKEN")?,
+            token: &env::var("SLACK_BOT_TOKEN")?,
         })
         .send()
         .await?
@@ -176,7 +226,7 @@ pub async fn rtm_connect() -> Result<(UnboundedSender<Value>, UnboundedReceiver<
 
                     if types.contains(&msg_type) && message.get("subtype").is_none() {
                         let event = serde_json::from_value::<Event>(message).unwrap();
-                        trace!("TEXT {:#?}", event);
+                        trace!("TEXT {:?}", event);
                         event_tx.unbounded_send(event).unwrap();
                     } else {
                         trace!(
