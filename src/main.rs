@@ -99,7 +99,7 @@ async fn run() -> Result<()> {
     while let Some(event) = r.next().await {
         info!("EVENT {:?}", event);
 
-        if let slack::Event::Message { channel, text, .. } = event {
+        if let slack::Event::Message { channel, text, user,.. } = event {
             if channel == target_channel && text.starts_with(&prefix) {
                 let response = match commands::parse(&text[prefix.len()..]) {
                     Ok(cmd) => match cmd {
@@ -147,6 +147,7 @@ async fn run() -> Result<()> {
 
                             response
                         }
+                        Command::Help => format!("Hey there {}!", user)
                     },
                     Err(e) => format!("Unknown command: {}", e),
                 };

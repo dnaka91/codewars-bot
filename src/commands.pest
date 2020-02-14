@@ -3,7 +3,8 @@ add = { "add" ~ username }
 remove = { ("remove" | "rm") ~ username }
 
 stats = { "stats" }
+help = { "help" }
 
-command = { SOI ~ (add | remove | stats) ~ EOI }
+command = { SOI ~ (add | remove | stats | help) ~ EOI }
 
 WHITESPACE = _{ " " }
