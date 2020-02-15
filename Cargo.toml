@@ -26,6 +26,7 @@ tokio = { version = "0.2.11", features = ["fs", "macros", "rt-core", "sync"] }
 tokio-tungstenite = { version = "0.10.1", features = ["tls"] }
 toml = "0.5.6"
 url = { version = "2.1.1", features = ["serde"] }
+warp = "0.2.1"
 
 [dev-dependencies]
 tempfile = "3.1.0"

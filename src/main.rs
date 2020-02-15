@@ -37,6 +37,9 @@ enum Subcommand {
     /// Test the current settings for debugging.
     #[structopt(setting = AppSettings::ColoredHelp)]
     TestSettings,
+    /// Run the event server instead of an RTM websocket.
+    #[structopt(setting = AppSettings::ColoredHelp)]
+    Server,
 }
 
 #[tokio::main]
@@ -50,6 +53,7 @@ async fn main() -> Result<()> {
         match cmd {
             Subcommand::Channels => list_channels().await?,
             Subcommand::TestSettings => test_settings().await?,
+            Subcommand::Server => run_server().await,
         }
         return Ok(());
     }
@@ -181,4 +185,8 @@ Here are all the commands I know:
 - `stats`: Show the current statistics of all tracked users.
 - `help`: Show this help.",
     ))
+}
+
+async fn run_server() {
+    slack::event::run_server().await;
 }
