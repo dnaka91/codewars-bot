@@ -33,20 +33,22 @@ impl Repository {
         fs::write(&self.path, &settings).await.map_err(Into::into)
     }
 
-    pub async fn add_user(&mut self, username: &str) -> Result<()> {
+    pub async fn add_user(&mut self, username: &str) -> Result<bool> {
         if self.users.insert(username.to_owned()) {
             self.save().await?;
+            Ok(true)
+        } else {
+            Ok(false)
         }
-
-        Ok(())
     }
 
-    pub async fn remove_user(&mut self, username: &str) -> Result<()> {
+    pub async fn remove_user(&mut self, username: &str) -> Result<bool> {
         if self.users.remove(username) {
             self.save().await?;
+            Ok(true)
+        } else {
+            Ok(false)
         }
-
-        Ok(())
     }
 
     pub fn users(&self) -> impl Iterator<Item = &'_ str> {

@@ -120,13 +120,19 @@ async fn run() -> Result<()> {
 }
 
 async fn add_user(settings: &mut Repository, username: String) -> Result<String> {
-    settings.add_user(&username).await?;
-    Ok(format!("Added user `{}` to watchlist", username))
+    Ok(if settings.add_user(&username).await? {
+        format!("Added user `{}` to watchlist", username)
+    } else {
+        format!("User `{}` is already in the watchlist", username)
+    })
 }
 
 async fn remove_user(settings: &mut Repository, username: String) -> Result<String> {
-    settings.remove_user(&username).await?;
-    Ok(format!("Removed user `{}` from watchlist", username))
+    Ok(if settings.remove_user(&username).await? {
+        format!("Removed user `{}` from watchlist", username)
+    } else {
+        format!("User `{}` is not in the watchlist", username)
+    })
 }
 
 async fn stats(settings: &Repository) -> Result<String> {
