@@ -57,6 +57,10 @@ pub struct CodeChallenges {
     pub total_completed: u32,
 }
 
+pub async fn user(username: &str) -> Result<User> {
+    get_data(&format!("users/{}", username)).await
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletedChallenges {
@@ -75,6 +79,10 @@ pub struct CompletedChallenge {
     pub completed_languages: HashSet<String>,
 }
 
+pub async fn completed_challenges(username: &str) -> Result<CompletedChallenges> {
+    get_data(&format!("users/{}/code-challenges/completed", username)).await
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthoredChallenges {
@@ -91,6 +99,10 @@ pub struct AuthoredChallenge {
     pub rank_name: String,
     pub tags: HashSet<String>,
     pub languages: HashSet<String>,
+}
+
+pub async fn authored_challenges(username: &str) -> Result<AuthoredChallenges> {
+    get_data(&format!("users/{}/code-challenges/authored", username)).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -139,18 +151,6 @@ pub struct ShortUser {
 pub struct Unresolved {
     pub issues: u32,
     pub suggestions: u32,
-}
-
-pub async fn user(username: &str) -> Result<User> {
-    get_data(&format!("users/{}", username)).await
-}
-
-pub async fn completed_challenges(username: &str) -> Result<CompletedChallenges> {
-    get_data(&format!("users/{}/code-challenges/completed", username)).await
-}
-
-pub async fn authored_challenges(username: &str) -> Result<AuthoredChallenges> {
-    get_data(&format!("users/{}/code-challenges/authored", username)).await
 }
 
 pub async fn code_challenge(slug_or_id: &str) -> Result<CodeChallenge> {

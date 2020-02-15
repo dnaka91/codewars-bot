@@ -12,11 +12,11 @@ use log::info;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
-mod codewars;
+mod api;
 mod commands;
-mod slack;
 mod storage;
 
+use crate::api::{codewars, slack};
 use crate::commands::Command;
 use crate::storage::Repository;
 
@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
 }
 
 async fn list_channels() -> Result<()> {
-    let mut channels = slack::users_conversations().await?;
+    let mut channels = slack::web::users_conversations().await?;
     channels.sort_by(|a, b| a.name.cmp(&b.name));
 
     for channel in channels {
@@ -87,20 +87,20 @@ async fn test_settings() -> Result<()> {
 async fn run() -> Result<()> {
     let mut settings = Repository::load(SETTINGS_FILE).await?;
 
-    let bot_user = slack::users_list()
+    let bot_user = slack::web::users_list()
         .await?
         .into_iter()
         .find(|u| !u.deleted && u.is_bot && u.name == "codewarsbot")
         .context("bot user ID not found for `codewarsbot`")?;
     let prefix = format!("<@{}> ", bot_user.id);
 
-    let (_, mut r) = slack::rtm_connect().await?;
+    let (_, mut r) = slack::rtm::connect().await?;
     let target_channel = env::var("SLACK_CHANNEL")?;
 
     while let Some(event) = r.next().await {
         info!("EVENT {:?}", event);
 
-        if let slack::RtmEvent::Message { channel, text, .. } = event {
+        if let slack::rtm::Event::Message { channel, text, .. } = event {
             if channel == target_channel && text.starts_with(&prefix) {
                 let response = match commands::parse(&text[prefix.len()..]) {
                     Ok(cmd) => match cmd {
@@ -111,7 +111,7 @@ async fn run() -> Result<()> {
                     }?,
                     Err(e) => format!("Unknown command:\n```{}```", e),
                 };
-                slack::webhook_message(&response).await?;
+                slack::webhook::send(&response).await?;
             }
         }
     }
