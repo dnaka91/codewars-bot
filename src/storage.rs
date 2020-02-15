@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -10,7 +10,7 @@ use tokio::fs;
 pub struct Repository {
     #[serde(skip)]
     path: PathBuf,
-    users: HashSet<String>,
+    users: BTreeSet<String>,
 }
 
 impl Repository {
