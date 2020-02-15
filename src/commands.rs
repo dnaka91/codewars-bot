@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -17,16 +17,31 @@ pub enum Command {
 
 pub fn parse(cmd: &str) -> Result<Command> {
     let command = CommandParser::parse(Rule::command, cmd)?.next().unwrap();
-    let command = command.into_inner().next().unwrap();
+    let command = command
+        .into_inner()
+        .next()
+        .ok_or_else(|| anyhow!("command missing"))?;
 
     Ok(match command.as_rule() {
-        Rule::add => Command::AddUser(command.into_inner().next().unwrap().as_str().to_owned()),
-        Rule::remove => {
-            Command::RemoveUser(command.into_inner().next().unwrap().as_str().to_owned())
-        }
+        Rule::add => Command::AddUser(
+            command
+                .into_inner()
+                .next()
+                .ok_or_else(|| anyhow!("username missing"))?
+                .as_str()
+                .to_owned(),
+        ),
+        Rule::remove => Command::RemoveUser(
+            command
+                .into_inner()
+                .next()
+                .ok_or_else(|| anyhow!("username missing"))?
+                .as_str()
+                .to_owned(),
+        ),
         Rule::stats => Command::Stats,
         Rule::help => Command::Help,
-        _ => unreachable!(),
+        _ => bail!("unknown command"),
     })
 }
 
