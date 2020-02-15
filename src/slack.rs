@@ -1,12 +1,12 @@
 use std::env;
 
-use anyhow::{ensure, Result};
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use futures::prelude::*;
 use log::trace;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use thiserror::Error;
 use tokio_tungstenite::tungstenite::Message;
 use url::Url;
 
@@ -16,6 +16,22 @@ pub const RTM_CONNECT: &str = "rtm.connect";
 pub const USERS_CONVERSATIONS: &str = "users.conversations";
 pub const CHAT_POST_MESSAGE: &str = "chat.postMessage";
 pub const USERS_LIST: &str = "users.list";
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Error during HTTP handling")]
+    Http(#[from] reqwest::Error),
+    #[error("URL handling failed")]
+    UrlParse(#[from] url::ParseError),
+    #[error("Error reading environment variable")]
+    EnvVar(#[from] std::env::VarError),
+    #[error("Error during WebSocket connection")]
+    WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
+    #[error("Failed sending a request to get {0}: {1}")]
+    UnsuccessfulRequest(&'static str, String),
+}
 
 #[derive(Debug, Serialize)]
 pub struct RtmConnectRequest<'a> {
@@ -133,11 +149,13 @@ pub async fn users_conversations() -> Result<Vec<Channel>> {
         .json()
         .await?;
 
-    ensure!(
-        resp.ok,
-        "failed reading user's conversation list {:?}",
-        resp.error
-    );
+    if !resp.ok {
+        return Err(Error::UnsuccessfulRequest(
+            USERS_CONVERSATIONS,
+            resp.error.unwrap(),
+        ));
+    }
+
     Ok(resp.channels.unwrap())
 }
 
@@ -152,7 +170,10 @@ pub async fn users_list() -> Result<Vec<User>> {
         .json()
         .await?;
 
-    ensure!(resp.ok, "failed reading user list {:?}", resp.error);
+    if !resp.ok {
+        return Err(Error::UnsuccessfulRequest(USERS_LIST, resp.error.unwrap()));
+    }
+
     Ok(resp.members.unwrap())
 }
 
@@ -172,7 +193,13 @@ pub async fn chat_post_message(channel: &str, text: &str) -> Result<()> {
         .json()
         .await?;
 
-    ensure!(resp.ok, "failed posting chat message {:?}", resp.error);
+    if !resp.ok {
+        return Err(Error::UnsuccessfulRequest(
+            CHAT_POST_MESSAGE,
+            resp.error.unwrap(),
+        ));
+    }
+
     Ok(())
 }
 
@@ -183,7 +210,13 @@ pub async fn webhook_message(text: &str) -> Result<()> {
         .send()
         .await?;
 
-    ensure!(resp.status().is_success(), "failed posting to webhook");
+    if !resp.status().is_success() {
+        return Err(Error::UnsuccessfulRequest(
+            "webhook",
+            "Failed posting to webhook".to_owned(),
+        ));
+    }
+
     Ok(())
 }
 

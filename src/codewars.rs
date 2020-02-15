@@ -1,13 +1,25 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
+use thiserror::Error;
 use url::Url;
 
 static BASE_URL: Lazy<Url> = Lazy::new(|| Url::parse("https://codewars.com/api/v1/").unwrap());
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Status code didn't indicate success (code {0})")]
+    UnsuccessfulStatus(u16),
+    #[error("Error during HTTP handling")]
+    Http(#[from] reqwest::Error),
+    #[error("URL handling failed")]
+    UrlParse(#[from] url::ParseError),
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -146,12 +158,16 @@ pub async fn code_challenge(slug_or_id: &str) -> Result<CodeChallenge> {
 }
 
 async fn get_data<T: DeserializeOwned>(path: &str) -> Result<T> {
-    Ok(reqwest::Client::new()
+    let resp = reqwest::Client::new()
         .get(BASE_URL.join(path)?)
         .send()
-        .await?
-        .json()
-        .await?)
+        .await?;
+
+    if !resp.status().is_success() {
+        return Err(Error::UnsuccessfulStatus(resp.status().as_u16()));
+    }
+
+    Ok(resp.json().await?)
 }
 
 #[cfg(test)]
