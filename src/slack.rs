@@ -4,6 +4,7 @@ use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use futures::prelude::*;
 use log::trace;
 use once_cell::sync::Lazy;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -29,8 +30,24 @@ pub enum Error {
     EnvVar(#[from] std::env::VarError),
     #[error("Error during WebSocket connection")]
     WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
+    #[error("Error during JSON (de-)serialization")]
+    Json(#[from] serde_json::Error),
     #[error("Failed sending a request to get {0}: {1}")]
     UnsuccessfulRequest(&'static str, String),
+    #[error("Status code didn't indicate success (code {0})")]
+    UnsuccessfulStatus(u16),
+    #[error("Response JSON is not in the expected format")]
+    InvalidJson,
+}
+
+#[derive(Debug, Deserialize)]
+struct BasicResponse {
+    ok: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct ErrorResponse {
+    error: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -40,7 +57,6 @@ pub struct RtmConnectRequest<'a> {
 
 #[derive(Debug, Deserialize)]
 pub struct RtmConnectResponse {
-    pub ok: bool,
     pub url: Url,
 }
 
@@ -51,9 +67,7 @@ pub struct UsersConversationsRequest<'a> {
 
 #[derive(Debug, Deserialize)]
 pub struct UsersConversationsResponse {
-    pub ok: bool,
-    pub channels: Option<Vec<Channel>>,
-    pub error: Option<String>,
+    pub channels: Vec<Channel>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,6 +88,11 @@ pub struct ChatPostMessageRequest<'a> {
     pub username: Option<&'a str>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ChatPostMessageResponse {
+    pub ok: bool,
+}
+
 #[derive(Debug, Serialize)]
 pub struct UsersListRequest<'a> {
     pub token: &'a str,
@@ -81,9 +100,7 @@ pub struct UsersListRequest<'a> {
 
 #[derive(Debug, Deserialize)]
 pub struct UsersListResponse {
-    pub ok: bool,
-    pub members: Option<Vec<User>>,
-    pub error: Option<String>,
+    pub members: Vec<User>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,11 +109,6 @@ pub struct User {
     pub deleted: bool,
     pub name: String,
     pub is_bot: bool,
-}
-#[derive(Debug, Deserialize)]
-pub struct ChatPostMessageResponse {
-    pub ok: bool,
-    pub error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -139,66 +151,45 @@ pub struct WebhookMessage<'a> {
 }
 
 pub async fn users_conversations() -> Result<Vec<Channel>> {
-    let resp: UsersConversationsResponse = reqwest::Client::new()
-        .post(BASE_URL.join(USERS_CONVERSATIONS)?)
-        .form(&UsersConversationsRequest {
-            token: &env::var("SLACK_TOKEN")?,
-        })
-        .send()
-        .await?
-        .json()
-        .await?;
+    let resp: UsersConversationsResponse = send_request(
+        reqwest::Client::new()
+            .post(BASE_URL.join(USERS_CONVERSATIONS)?)
+            .form(&UsersConversationsRequest {
+                token: &env::var("SLACK_TOKEN")?,
+            }),
+    )
+    .await?;
 
-    if !resp.ok {
-        return Err(Error::UnsuccessfulRequest(
-            USERS_CONVERSATIONS,
-            resp.error.unwrap(),
-        ));
-    }
-
-    Ok(resp.channels.unwrap())
+    Ok(resp.channels)
 }
 
 pub async fn users_list() -> Result<Vec<User>> {
-    let resp: UsersListResponse = reqwest::Client::new()
-        .post(BASE_URL.join(USERS_LIST)?)
-        .form(&UsersListRequest {
-            token: &env::var("SLACK_BOT_TOKEN")?,
-        })
-        .send()
-        .await?
-        .json()
-        .await?;
+    let resp: UsersListResponse = send_request(
+        reqwest::Client::new()
+            .post(BASE_URL.join(USERS_LIST)?)
+            .form(&UsersListRequest {
+                token: &env::var("SLACK_BOT_TOKEN")?,
+            }),
+    )
+    .await?;
 
-    if !resp.ok {
-        return Err(Error::UnsuccessfulRequest(USERS_LIST, resp.error.unwrap()));
-    }
-
-    Ok(resp.members.unwrap())
+    Ok(resp.members)
 }
 
 pub async fn chat_post_message(channel: &str, text: &str) -> Result<()> {
-    let resp: ChatPostMessageResponse = reqwest::Client::new()
-        .post(BASE_URL.join(CHAT_POST_MESSAGE)?)
-        .form(&ChatPostMessageRequest {
-            token: &env::var("SLACK_TOKEN")?,
-            channel,
-            text,
-            blocks: None,
-            icon_emoji: Some(":crossed_swords:"),
-            username: Some("Codewars Bot"),
-        })
-        .send()
-        .await?
-        .json()
-        .await?;
-
-    if !resp.ok {
-        return Err(Error::UnsuccessfulRequest(
-            CHAT_POST_MESSAGE,
-            resp.error.unwrap(),
-        ));
-    }
+    send_request::<BasicResponse>(
+        reqwest::Client::new()
+            .post(BASE_URL.join(CHAT_POST_MESSAGE)?)
+            .form(&ChatPostMessageRequest {
+                token: &env::var("SLACK_TOKEN")?,
+                channel,
+                text,
+                blocks: None,
+                icon_emoji: Some(":crossed_swords:"),
+                username: Some("Codewars Bot"),
+            }),
+    )
+    .await?;
 
     Ok(())
 }
@@ -221,15 +212,14 @@ pub async fn webhook_message(text: &str) -> Result<()> {
 }
 
 pub async fn rtm_connect() -> Result<(UnboundedSender<Value>, UnboundedReceiver<RtmEvent>)> {
-    let resp: RtmConnectResponse = reqwest::Client::new()
-        .post(BASE_URL.join(RTM_CONNECT)?)
-        .form(&RtmConnectRequest {
-            token: &env::var("SLACK_BOT_TOKEN")?,
-        })
-        .send()
-        .await?
-        .json()
-        .await?;
+    let resp: RtmConnectResponse = send_request(
+        reqwest::Client::new()
+            .post(BASE_URL.join(RTM_CONNECT)?)
+            .form(&RtmConnectRequest {
+                token: &env::var("SLACK_BOT_TOKEN")?,
+            }),
+    )
+    .await?;
 
     let (ws, _) = tokio_tungstenite::connect_async(&resp.url).await?;
     let (write, mut read) = ws.split();
@@ -281,6 +271,34 @@ pub async fn rtm_connect() -> Result<(UnboundedSender<Value>, UnboundedReceiver<
     });
 
     Ok((value_tx, event_rx))
+}
+
+async fn send_request<T>(builder: reqwest::RequestBuilder) -> Result<T>
+where
+    T: DeserializeOwned,
+{
+    let resp = builder.send().await?;
+
+    if !resp.status().is_success() {
+        return Err(Error::UnsuccessfulStatus(resp.status().as_u16()));
+    }
+
+    let resp: Value = resp.json().await?;
+    let object = resp.as_object().ok_or_else(|| Error::InvalidJson)?;
+    let ok = object
+        .get("ok")
+        .ok_or_else(|| Error::InvalidJson)?
+        .as_bool()
+        .ok_or_else(|| Error::InvalidJson)?;
+
+    if !ok {
+        return Err(Error::UnsuccessfulRequest(
+            USERS_CONVERSATIONS,
+            serde_json::from_value::<ErrorResponse>(resp)?.error,
+        ));
+    }
+
+    Ok(serde_json::from_value(resp)?)
 }
 
 #[cfg(test)]
