@@ -118,7 +118,7 @@ pub enum Element<'a> {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
-pub enum Event {
+pub enum RtmEvent {
     Hello,
     Error {
         code: i32,
@@ -220,7 +220,7 @@ pub async fn webhook_message(text: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn rtm_connect() -> Result<(UnboundedSender<Value>, UnboundedReceiver<Event>)> {
+pub async fn rtm_connect() -> Result<(UnboundedSender<Value>, UnboundedReceiver<RtmEvent>)> {
     let resp: RtmConnectResponse = reqwest::Client::new()
         .post(BASE_URL.join(RTM_CONNECT)?)
         .form(&RtmConnectRequest {
@@ -258,7 +258,7 @@ pub async fn rtm_connect() -> Result<(UnboundedSender<Value>, UnboundedReceiver<
                     let types = &["hello", "error", "message"];
 
                     if types.contains(&msg_type) && message.get("subtype").is_none() {
-                        let event = serde_json::from_value::<Event>(message).unwrap();
+                        let event = serde_json::from_value::<RtmEvent>(message).unwrap();
                         trace!("TEXT {:?}", event);
                         event_tx.unbounded_send(event).unwrap();
                     } else {

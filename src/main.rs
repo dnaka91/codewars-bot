@@ -100,60 +100,16 @@ async fn run() -> Result<()> {
     while let Some(event) = r.next().await {
         info!("EVENT {:?}", event);
 
-        if let slack::Event::Message {
-            channel,
-            text,
-            user,
-            ..
-        } = event
-        {
+        if let slack::RtmEvent::Message { channel, text, .. } = event {
             if channel == target_channel && text.starts_with(&prefix) {
                 let response = match commands::parse(&text[prefix.len()..]) {
                     Ok(cmd) => match cmd {
-                        Command::AddUser(username) => {
-                            settings.add_user(&username).await?;
-                            format!("Added user `{}` to watchlist", username)
-                        }
-                        Command::RemoveUser(username) => {
-                            settings.remove_user(&username).await?;
-                            format!("Removed user `{}` from watchlist", username)
-                        }
-                        Command::Stats => {
-                            let mut response = String::from("Here are the current statistics:");
-                            for user in settings.users() {
-                                let challenge_resp = codewars::completed_challenges(user).await?;
-                                let mut challenges = challenge_resp.data;
-                                challenges.sort_by(|a, b| a.completed_at.cmp(&b.completed_at));
-                                challenges.reverse();
-
-                                write!(
-                                    &mut response,
-                                    "\n\n`{}` - {} total challenges",
-                                    user, challenge_resp.total_items
-                                )?;
-
-                                for challenge in challenges.into_iter().take(3) {
-                                    if let Some(name) = challenge.name {
-                                        write!(
-                                            &mut response,
-                                            "\n*{}* solved at _{}_ in *{}*",
-                                            name,
-                                            challenge.completed_at.format("%Y/%m/%d"),
-                                            challenge
-                                                .completed_languages
-                                                .into_iter()
-                                                .collect::<Vec<_>>()
-                                                .join(", ")
-                                        )?;
-                                    }
-                                }
-                            }
-
-                            response
-                        }
-                        Command::Help => format!("Hey there <@{}>! This is still in TODO!", user),
-                    },
-                    Err(e) => format!("Unknown command: {}", e),
+                        Command::AddUser(username) => add_user(&mut settings, username).await,
+                        Command::RemoveUser(username) => remove_user(&mut settings, username).await,
+                        Command::Stats => stats(&settings).await,
+                        Command::Help => help().await,
+                    }?,
+                    Err(e) => format!("Unknown command:\n```{}```", e),
                 };
                 slack::webhook_message(&response).await?;
             }
@@ -161,4 +117,62 @@ async fn run() -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn add_user(settings: &mut Repository, username: String) -> Result<String> {
+    settings.add_user(&username).await?;
+    Ok(format!("Added user `{}` to watchlist", username))
+}
+
+async fn remove_user(settings: &mut Repository, username: String) -> Result<String> {
+    settings.remove_user(&username).await?;
+    Ok(format!("Removed user `{}` from watchlist", username))
+}
+
+async fn stats(settings: &Repository) -> Result<String> {
+    let mut response = String::from("Here are the current statistics:");
+    for user in settings.users() {
+        let challenge_resp = codewars::completed_challenges(user).await?;
+        let mut challenges = challenge_resp.data;
+        challenges.sort_by(|a, b| a.completed_at.cmp(&b.completed_at));
+        challenges.reverse();
+
+        write!(
+            &mut response,
+            "\n\n`{}` - {} total challenges",
+            user, challenge_resp.total_items
+        )?;
+
+        for challenge in challenges.into_iter().take(3) {
+            if let Some(name) = challenge.name {
+                write!(
+                    &mut response,
+                    "\n*{}* solved at _{}_ in *{}*",
+                    name,
+                    challenge.completed_at.format("%Y/%m/%d"),
+                    challenge
+                        .completed_languages
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )?;
+            }
+        }
+    }
+
+    Ok(response)
+}
+
+async fn help() -> Result<String> {
+    Ok(String::from(
+        "\
+Hello there, I'm a Codewars bot. You can use me by mentioning me, followed by a command.
+For example `@codewarsbot stats`.
+
+Here are all the commands I know:
+- `add <user>`: Add a Codewars user to the statistics report.
+- `remove <user>`: Remove a Codewars user from the statistics again.
+- `stats`: Show the current statistics of all tracked users.
+- `help`: Show this help.",
+    ))
 }
