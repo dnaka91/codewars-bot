@@ -6,6 +6,7 @@
 use std::fmt::Write;
 
 use anyhow::Result;
+use chrono::{NaiveTime, Weekday};
 use log::info;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
@@ -104,6 +105,7 @@ async fn run_server() -> Result<()> {
                 Command::RemoveUser(username) => remove_user(&mut settings, username).await,
                 Command::Stats => stats(&settings).await,
                 Command::Help => help().await,
+                Command::Schedule(weekday, time) => schedule(&mut settings, weekday, time).await,
             }?,
             Err(e) => format!("Unknown command:\n```{}```", e),
         };
@@ -176,4 +178,29 @@ Here are all the commands I know:
 - `stats`: Show the current statistics of all tracked users.
 - `help`: Show this help.",
     ))
+}
+
+async fn schedule(settings: &mut Repository, weekday: Weekday, time: NaiveTime) -> Result<String> {
+    Ok(
+        if settings
+            .set_schedule(storage::Schedule { weekday, time })
+            .await?
+        {
+            format!(
+                "Weekly schedule updated to send stats on `{}s` at `{}`",
+                match weekday {
+                    Weekday::Mon => "Monday",
+                    Weekday::Tue => "Tuesday",
+                    Weekday::Wed => "Wednesday",
+                    Weekday::Thu => "Thursday",
+                    Weekday::Fri => "Friday",
+                    Weekday::Sat => "Saturday",
+                    Weekday::Sun => "Sunday",
+                },
+                time
+            )
+        } else {
+            String::from("Weekly schedule already set to this weekday & time")
+        },
+    )
 }

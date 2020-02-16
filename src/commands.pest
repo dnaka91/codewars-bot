@@ -5,6 +5,19 @@ remove = { ("remove" | "rm") ~ username }
 stats = { "stats" }
 help = { "help" }
 
-command = { SOI ~ (add | remove | stats | help) ~ EOI }
+weekday = @{ (
+	^"mon" ~ ^"day"?
+    | ^"tue" ~ ^"sday"?
+    | ^"wed" ~ ^"nesday"?
+    | ^"thu" ~ ^"rsday"?
+    | ^"fri" ~ ^"day"?
+    | ^"sat" ~ ^"urday"?
+    | ^"sun" ~ ^"day"?
+) }
+time = @{ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} }
 
-WHITESPACE = _{ " " }
+schedule = { "schedule" ~ "on" ~ weekday ~ ("at" ~ time)? }
+
+command = { SOI ~ (add | remove | stats | help | schedule) ~ EOI }
+
+WHITESPACE = _{ " " | "\n" }

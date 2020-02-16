@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use chrono::{NaiveTime, Weekday};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
@@ -11,6 +12,22 @@ pub struct Repository {
     #[serde(skip)]
     path: PathBuf,
     users: BTreeSet<String>,
+    schedule: Schedule,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Schedule {
+    pub weekday: Weekday,
+    pub time: NaiveTime,
+}
+
+impl Default for Schedule {
+    fn default() -> Self {
+        Self {
+            weekday: Weekday::Sun,
+            time: NaiveTime::from_hms(10, 0, 0),
+        }
+    }
 }
 
 impl Repository {
@@ -53,6 +70,20 @@ impl Repository {
 
     pub fn users(&self) -> impl Iterator<Item = &'_ str> {
         self.users.iter().map(String::as_str)
+    }
+
+    pub const fn schedule(&self) -> &Schedule {
+        &self.schedule
+    }
+
+    pub async fn set_schedule(&mut self, schedule: Schedule) -> Result<bool> {
+        if self.schedule == schedule {
+            Ok(false)
+        } else {
+            self.schedule = schedule;
+            self.save().await?;
+            Ok(true)
+        }
     }
 }
 

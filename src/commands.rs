@@ -1,4 +1,5 @@
 use anyhow::{anyhow, bail, Result};
+use chrono::{NaiveTime, Weekday};
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -13,6 +14,7 @@ pub enum Command {
     RemoveUser(String),
     Stats,
     Help,
+    Schedule(Weekday, NaiveTime),
 }
 
 pub fn parse(cmd: &str) -> Result<Command> {
@@ -41,6 +43,13 @@ pub fn parse(cmd: &str) -> Result<Command> {
         ),
         Rule::stats => Command::Stats,
         Rule::help => Command::Help,
+        Rule::schedule => {
+            let mut args = command.into_inner();
+            Command::Schedule(
+                args.next().unwrap().as_str().parse().unwrap(),
+                NaiveTime::parse_from_str(args.next().unwrap().as_str(), "%R").unwrap(),
+            )
+        }
         _ => bail!("unknown command"),
     })
 }
