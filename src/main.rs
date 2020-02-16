@@ -3,11 +3,9 @@
 #![warn(clippy::nursery)]
 #![allow(dead_code)]
 
-use std::env;
 use std::fmt::Write;
 
-use anyhow::{Context, Result};
-use futures::prelude::*;
+use anyhow::Result;
 use log::info;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
@@ -39,9 +37,6 @@ enum Subcommand {
     /// Test the current settings for debugging.
     #[structopt(setting = AppSettings::ColoredHelp)]
     TestSettings,
-    /// Run the event server instead of an RTM websocket.
-    #[structopt(setting = AppSettings::ColoredHelp)]
-    Server,
 }
 
 #[tokio::main]
@@ -55,12 +50,11 @@ async fn main() -> Result<()> {
         match cmd {
             Subcommand::Channels => list_channels().await?,
             Subcommand::TestSettings => test_settings().await?,
-            Subcommand::Server => run_server().await?,
         }
         return Ok(());
     }
 
-    run().await?;
+    run_server().await?;
 
     Ok(())
 }
@@ -85,41 +79,6 @@ async fn test_settings() -> Result<()> {
             codewars::completed_challenges(user),
             codewars::authored_challenges(user),
         )?;
-    }
-
-    Ok(())
-}
-
-async fn run() -> Result<()> {
-    let mut settings = Repository::load(SETTINGS_FILE).await?;
-
-    let bot_user = slack::web::users_list()
-        .await?
-        .into_iter()
-        .find(|u| !u.deleted && u.is_bot && u.name == "codewarsbot")
-        .context("bot user ID not found for `codewarsbot`")?;
-    let prefix = format!("<@{}> ", bot_user.id);
-
-    let (_, mut r) = slack::rtm::connect().await?;
-    let target_channel = env::var("SLACK_CHANNEL")?;
-
-    while let Some(event) = r.next().await {
-        info!("EVENT {:?}", event);
-
-        if let slack::rtm::Event::Message { channel, text, .. } = event {
-            if channel == target_channel && text.starts_with(&prefix) {
-                let response = match commands::parse(&text[prefix.len()..]) {
-                    Ok(cmd) => match cmd {
-                        Command::AddUser(username) => add_user(&mut settings, username).await,
-                        Command::RemoveUser(username) => remove_user(&mut settings, username).await,
-                        Command::Stats => stats(&settings).await,
-                        Command::Help => help().await,
-                    }?,
-                    Err(e) => format!("Unknown command:\n```{}```", e),
-                };
-                slack::webhook::send(&response).await?;
-            }
-        }
     }
 
     Ok(())

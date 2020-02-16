@@ -4,7 +4,6 @@ use thiserror::Error;
 use url::Url;
 
 pub mod event;
-pub mod rtm;
 pub mod web;
 pub mod webhook;
 
@@ -20,8 +19,6 @@ pub enum Error {
     UrlParse(#[from] url::ParseError),
     #[error("Error reading environment variable")]
     EnvVar(#[from] std::env::VarError),
-    #[error("Error during WebSocket connection")]
-    WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
     #[error("Error during JSON (de-)serialization")]
     Json(#[from] serde_json::Error),
     #[error("Failed sending a request to get {0}: {1}")]
