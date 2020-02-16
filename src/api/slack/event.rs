@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use tokio::sync::mpsc::UnboundedSender;
 use warp::Filter;
 
 #[derive(Debug, Deserialize)]
@@ -13,27 +14,32 @@ pub struct AppMention {
     pub channel: String,
 }
 
-pub async fn run_server() {
+pub async fn run_server(sender: UnboundedSender<AppMention>) {
     let routes = filters::index()
-        .or(filters::event())
+        .or(filters::event(sender))
         .with(warp::log("server"));
 
     warp::serve(routes).run(([127, 0, 0, 1], 8080)).await
 }
 
 mod filters {
+    use tokio::sync::mpsc::UnboundedSender;
     use warp::Filter;
 
     use super::handlers;
+    use super::AppMention;
 
     pub fn index() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         warp::get().and(warp::path::end()).map(handlers::index)
     }
 
-    pub fn event() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    pub fn event(
+        sender: UnboundedSender<AppMention>,
+    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         warp::post()
             .and(warp::path!("event"))
             .and(warp::body::json())
+            .and(warp::any().map(move || sender.clone()))
             .map(handlers::event)
             .map(handlers::error)
     }
@@ -43,8 +49,9 @@ mod handlers {
     #![allow(clippy::needless_pass_by_value)]
 
     use anyhow::{anyhow, Result};
-    use log::{error, info};
+    use log::{error, info, trace};
     use serde_json::Value;
+    use tokio::sync::mpsc::UnboundedSender;
     use warp::http::header;
     use warp::http::StatusCode;
 
@@ -52,33 +59,57 @@ mod handlers {
 
     const INDEX_HTML: &[u8] = include_bytes!("index.html");
 
-    const TYPE_URL_VERIFICATION: &str = "url_verification";
-    const TYPE_APP_MENTION: &str = "app_mention";
+    const CALLBACK_URL_VERIFICATION: &str = "url_verification";
+    const CALLBACK_EVENT_CALLBACK: &str = "event_callback";
+    const EVENT_APP_MENTION: &str = "app_mention";
 
     pub fn index() -> impl warp::Reply {
         warp::reply::html(INDEX_HTML)
     }
 
-    pub fn event(event: Value) -> Result<Option<String>> {
+    pub fn event(mut event: Value, sender: UnboundedSender<AppMention>) -> Result<Option<String>> {
         match event
             .get("type")
             .ok_or_else(|| anyhow!("missing `type` property"))?
             .as_str()
             .ok_or_else(|| anyhow!("type is not a string"))?
         {
-            TYPE_URL_VERIFICATION => {
+            CALLBACK_URL_VERIFICATION => {
+                trace!(target: "server", "Received URL verification request");
                 let event: UrlVerification = serde_json::from_value(event)?;
                 Ok(Some(event.challenge))
             }
-            TYPE_APP_MENTION => {
-                let event: AppMention = serde_json::from_value(event)?;
-                tokio::spawn(async move {
-                    info!(target:"server", "{:?}", event);
-                });
+            CALLBACK_EVENT_CALLBACK => {
+                trace!(target: "server", "Received event callback request");
+                let event = event
+                    .get_mut("event")
+                    .ok_or_else(|| anyhow!("missing `event` property"))?;
+
+                match event
+                    .as_object()
+                    .ok_or_else(|| anyhow!("event is not an object"))?
+                    .get("type")
+                    .ok_or_else(|| anyhow!("missing `type` property"))?
+                    .as_str()
+                    .ok_or_else(|| anyhow!("type is not a string"))?
+                {
+                    EVENT_APP_MENTION => {
+                        trace!(target: "server", "Received app mention event");
+                        let event: AppMention = serde_json::from_value(event.take())?;
+                        tokio::spawn(async move {
+                            trace!(target:"server", "{:?}", event);
+                            sender.send(event).unwrap();
+                        });
+                    }
+                    event_type => {
+                        info!(target: "server", "Received unknown event ({})", event_type)
+                    }
+                }
+
                 Ok(None)
             }
-            event => {
-                info!(target: "server", "Got unknown event type `{}`", event);
+            callback_type => {
+                info!(target: "server", "Received unknown callback request ({})", callback_type);
                 Ok(None)
             }
         }

@@ -11,11 +11,13 @@ use futures::prelude::*;
 use log::info;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
+use tokio::sync::mpsc;
 
 mod api;
 mod commands;
 mod storage;
 
+use crate::api::slack::event::AppMention;
 use crate::api::{codewars, slack};
 use crate::commands::Command;
 use crate::storage::Repository;
@@ -53,7 +55,7 @@ async fn main() -> Result<()> {
         match cmd {
             Subcommand::Channels => list_channels().await?,
             Subcommand::TestSettings => test_settings().await?,
-            Subcommand::Server => run_server().await,
+            Subcommand::Server => run_server().await?,
         }
         return Ok(());
     }
@@ -123,6 +125,36 @@ async fn run() -> Result<()> {
     Ok(())
 }
 
+async fn run_server() -> Result<()> {
+    let mut settings = Repository::load(SETTINGS_FILE).await?;
+    let (tx, mut rx) = mpsc::unbounded_channel();
+
+    let handle = tokio::spawn(slack::event::run_server(tx));
+
+    while let Some(AppMention { user, text, .. }) = rx.recv().await {
+        let prefix = if let Some(idx) = text.find("> ") {
+            idx + 2
+        } else {
+            slack::webhook::send(&format!("<@{}>messages must start with a metion", user)).await?;
+            continue;
+        };
+
+        let response = match commands::parse(&text[prefix..]) {
+            Ok(cmd) => match cmd {
+                Command::AddUser(username) => add_user(&mut settings, username).await,
+                Command::RemoveUser(username) => remove_user(&mut settings, username).await,
+                Command::Stats => stats(&settings).await,
+                Command::Help => help().await,
+            }?,
+            Err(e) => format!("Unknown command:\n```{}```", e),
+        };
+        slack::webhook::send(&response).await?;
+    }
+
+    handle.await?;
+    Ok(())
+}
+
 async fn add_user(settings: &mut Repository, username: String) -> Result<String> {
     Ok(if settings.add_user(&username).await? {
         format!("Added user `{}` to watchlist", username)
@@ -185,8 +217,4 @@ Here are all the commands I know:
 - `stats`: Show the current statistics of all tracked users.
 - `help`: Show this help.",
     ))
-}
-
-async fn run_server() {
-    slack::event::run_server().await;
 }
