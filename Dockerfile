@@ -7,11 +7,10 @@ RUN cargo install --path .
 
 FROM alpine:3.11
 
-WORKDIR /app
+WORKDIR /data
 
 RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder /root/.cargo/bin/codewars-bot /app/
-COPY .env /app/
 
 ENTRYPOINT ["/app/codewars-bot"]
