@@ -1,5 +1,3 @@
-use std::env;
-
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -32,13 +30,13 @@ pub struct ChatPostMessageResponse {
     pub ok: bool,
 }
 
-pub async fn chat_post_message(channel: &str, text: &str) -> Result<()> {
+pub async fn chat_post_message(token: &str, channel: &str, text: &str) -> Result<()> {
     send_request::<BasicResponse>(
         CHAT_POST_MESSAGE,
         reqwest::Client::new()
             .post(BASE_URL.join(CHAT_POST_MESSAGE)?)
             .form(&ChatPostMessageRequest {
-                token: &env::var("SLACK_TOKEN")?,
+                token,
                 channel,
                 text,
                 blocks: None,
@@ -61,14 +59,12 @@ pub struct RtmConnectResponse {
     pub url: Url,
 }
 
-pub async fn rtm_connect() -> Result<Url> {
+pub async fn rtm_connect(token: &str) -> Result<Url> {
     let resp: RtmConnectResponse = send_request(
         RTM_CONNECT,
         reqwest::Client::new()
             .post(BASE_URL.join(RTM_CONNECT)?)
-            .form(&RtmConnectRequest {
-                token: &env::var("SLACK_BOT_TOKEN")?,
-            }),
+            .form(&RtmConnectRequest { token }),
     )
     .await?;
 
@@ -93,14 +89,12 @@ pub struct Channel {
     pub is_archived: bool,
 }
 
-pub async fn users_conversations() -> Result<Vec<Channel>> {
+pub async fn users_conversations(token: &str) -> Result<Vec<Channel>> {
     let resp: UsersConversationsResponse = send_request(
         USERS_CONVERSATIONS,
         reqwest::Client::new()
             .post(BASE_URL.join(USERS_CONVERSATIONS)?)
-            .form(&UsersConversationsRequest {
-                token: &env::var("SLACK_TOKEN")?,
-            }),
+            .form(&UsersConversationsRequest { token }),
     )
     .await?;
 
@@ -125,14 +119,12 @@ pub struct User {
     pub is_bot: bool,
 }
 
-pub async fn users_list() -> Result<Vec<User>> {
+pub async fn users_list(token: &str) -> Result<Vec<User>> {
     let resp: UsersListResponse = send_request(
         USERS_LIST,
         reqwest::Client::new()
             .post(BASE_URL.join(USERS_LIST)?)
-            .form(&UsersListRequest {
-                token: &env::var("SLACK_BOT_TOKEN")?,
-            }),
+            .form(&UsersListRequest { token }),
     )
     .await?;
 

@@ -28,6 +28,12 @@ const SETTINGS_FILE: &str = "settings.toml";
 struct Opt {
     #[structopt(subcommand)]
     cmd: Option<Subcommand>,
+    #[structopt(long, env, hide_env_values = true)]
+    app_token: String,
+    #[structopt(long, env, hide_env_values = true)]
+    bot_token: String,
+    #[structopt(long, env, hide_env_values = true)]
+    webhook_url: String,
 }
 
 #[derive(Debug, StructOpt)]
@@ -50,13 +56,13 @@ async fn main() -> Result<()> {
 
     if let Some(cmd) = opt.cmd {
         match cmd {
-            Subcommand::Channels => list_channels().await?,
+            Subcommand::Channels => list_channels(&opt.app_token).await?,
             Subcommand::TestSettings => test_settings().await?,
         }
         return Ok(());
     }
 
-    run_server().await?;
+    run_server(&opt.webhook_url).await?;
 
     Ok(())
 }
@@ -108,6 +114,8 @@ fn setup_logger() -> Result<()> {
         .map_err(Into::into)
 }
 
+async fn list_channels(token: &str) -> Result<()> {
+    let mut channels = slack::web::users_conversations(token).await?;
     channels.sort_by(|a, b| a.name.cmp(&b.name));
 
     for channel in channels {
@@ -131,7 +139,7 @@ async fn test_settings() -> Result<()> {
     Ok(())
 }
 
-async fn run_server() -> Result<()> {
+async fn run_server(webhook_url: &str) -> Result<()> {
     let mut settings = Repository::load(SETTINGS_FILE).await?;
     let (tx, mut rx) = mpsc::unbounded_channel();
 
@@ -141,7 +149,11 @@ async fn run_server() -> Result<()> {
         let prefix = if let Some(idx) = text.find("> ") {
             idx + 2
         } else {
-            slack::webhook::send(&format!("<@{}>messages must start with a metion", user)).await?;
+            slack::webhook::send(
+                webhook_url,
+                &format!("<@{}>messages must start with a metion", user),
+            )
+            .await?;
             continue;
         };
 
@@ -155,7 +167,7 @@ async fn run_server() -> Result<()> {
             }?,
             Err(e) => format!("Unknown command:\n```{}```", e),
         };
-        slack::webhook::send(&response).await?;
+        slack::webhook::send(webhook_url, &response).await?;
     }
 
     handle.await?;

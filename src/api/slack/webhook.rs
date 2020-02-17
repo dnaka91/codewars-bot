@@ -1,5 +1,4 @@
-use std::env;
-
+use reqwest::IntoUrl;
 use serde::Serialize;
 
 use super::{Block, Error, Result};
@@ -10,9 +9,9 @@ pub struct Message<'a> {
     pub blocks: Option<&'a [&'a Block<'a>]>,
 }
 
-pub async fn send(text: &str) -> Result<()> {
+pub async fn send<U: IntoUrl>(url: U, text: &str) -> Result<()> {
     let resp = reqwest::Client::new()
-        .post(&env::var("SLACK_WEBHOOK")?)
+        .post(url)
         .json(&Message { text, blocks: None })
         .send()
         .await?;
