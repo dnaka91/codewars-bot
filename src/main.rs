@@ -38,9 +38,6 @@ struct Opt {
 
 #[derive(Debug, StructOpt)]
 enum Subcommand {
-    /// List all available channels with their corresponding ID.
-    #[structopt(setting = AppSettings::ColoredHelp)]
-    Channels,
     /// Test the current settings for debugging.
     #[structopt(setting = AppSettings::ColoredHelp)]
     TestSettings,
@@ -56,7 +53,6 @@ async fn main() -> Result<()> {
 
     if let Some(cmd) = opt.cmd {
         match cmd {
-            Subcommand::Channels => list_channels(&opt.app_token).await?,
             Subcommand::TestSettings => test_settings().await?,
         }
         return Ok(());
@@ -112,17 +108,6 @@ fn setup_logger() -> Result<()> {
         )
         .apply()
         .map_err(Into::into)
-}
-
-async fn list_channels(token: &str) -> Result<()> {
-    let mut channels = slack::web::users_conversations(token).await?;
-    channels.sort_by(|a, b| a.name.cmp(&b.name));
-
-    for channel in channels {
-        println!("{} {}", channel.id, channel.name);
-    }
-
-    Ok(())
 }
 
 async fn test_settings() -> Result<()> {
