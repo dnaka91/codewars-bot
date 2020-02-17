@@ -42,10 +42,11 @@ enum Subcommand {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenv::dotenv()?;
-    pretty_env_logger::try_init()?;
+    dotenv::dotenv().ok();
 
     let opt: Opt = Opt::from_args();
+
+    setup_logger()?;
 
     if let Some(cmd) = opt.cmd {
         match cmd {
@@ -60,8 +61,53 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn list_channels() -> Result<()> {
-    let mut channels = slack::web::users_conversations().await?;
+fn setup_logger() -> Result<()> {
+    let colored = |l: log::Level| -> console::StyledObject<log::Level> {
+        let styled = console::style(l);
+        match l {
+            log::Level::Trace => styled.magenta(),
+            log::Level::Debug => styled.blue(),
+            log::Level::Info => styled.green(),
+            log::Level::Warn => styled.yellow(),
+            log::Level::Error => styled.red(),
+        }
+    };
+
+    fern::Dispatch::new()
+        .chain(
+            fern::Dispatch::new()
+                .format(move |out, message, record| {
+                    out.finish(format_args!(
+                        "[{}] [{:5}] [{}] {}",
+                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                        record.level(),
+                        record.target(),
+                        message
+                    ))
+                })
+                .level(log::LevelFilter::Info)
+                .chain(fern::log_file("codewars-bot.log")?),
+        )
+        .chain(
+            fern::Dispatch::new()
+                .format(move |out, message, record| {
+                    out.finish(format_args!(
+                        "{} {:5} {} > {}",
+                        chrono::Local::now().format("%H:%M:%S"),
+                        colored(record.level()),
+                        console::style(record.target()).bold(),
+                        message
+                    ))
+                })
+                .level(log::LevelFilter::Info)
+                .level_for("codewars_bot", log::LevelFilter::Trace)
+                .level_for("server", log::LevelFilter::Trace)
+                .chain(std::io::stdout()),
+        )
+        .apply()
+        .map_err(Into::into)
+}
+
     channels.sort_by(|a, b| a.name.cmp(&b.name));
 
     for channel in channels {
