@@ -18,7 +18,9 @@ pub enum Command {
 }
 
 pub fn parse(cmd: &str) -> Result<Command> {
-    let command = CommandParser::parse(Rule::command, cmd)?.next().unwrap();
+    let command = CommandParser::parse(Rule::command, cmd)?
+        .next()
+        .ok_or_else(|| anyhow!("command missing"))?;
     let command = command
         .into_inner()
         .next()
@@ -46,8 +48,15 @@ pub fn parse(cmd: &str) -> Result<Command> {
         Rule::schedule => {
             let mut args = command.into_inner();
             Command::Schedule(
-                args.next().unwrap().as_str().parse().unwrap(),
-                NaiveTime::parse_from_str(args.next().unwrap().as_str(), "%R").unwrap(),
+                args.next()
+                    .ok_or_else(|| anyhow!("weekday missing"))?
+                    .as_str()
+                    .parse()
+                    .map_err(|_| anyhow!("invalid weekday"))?,
+                args.next().map_or_else(
+                    || Ok(NaiveTime::from_hms(10, 0, 0)),
+                    |t| NaiveTime::parse_from_str(t.as_str(), "%R"),
+                )?,
             )
         }
         _ => bail!("unknown command"),
@@ -86,5 +95,23 @@ mod tests {
     #[test]
     fn parse_help() {
         assert_eq!(Some(Command::Help), parse("help").ok());
+    }
+
+    #[test]
+    fn parse_schedule() {
+        assert_eq!(
+            Some(Command::Schedule(
+                Weekday::Wed,
+                NaiveTime::from_hms(13, 5, 0)
+            )),
+            parse("schedule on Wednesday at 13:05").ok()
+        );
+        assert_eq!(
+            Some(Command::Schedule(
+                Weekday::Wed,
+                NaiveTime::from_hms(10, 0, 0)
+            )),
+            parse("schedule on Wednesday").ok()
+        );
     }
 }
