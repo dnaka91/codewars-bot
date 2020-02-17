@@ -1,4 +1,7 @@
+use log::warn;
 use serde::Deserialize;
+use tokio::signal;
+use tokio::stream::StreamExt;
 use tokio::sync::mpsc::UnboundedSender;
 use warp::Filter;
 
@@ -19,7 +22,34 @@ pub async fn run_server(sender: UnboundedSender<AppMention>) {
         .or(filters::event(sender))
         .with(warp::log("server"));
 
-    warp::serve(routes).run(([127, 0, 0, 1], 8080)).await
+    let (_, server) =
+        warp::serve(routes).bind_with_graceful_shutdown(([127, 0, 0, 1], 8080), shutdown_signal());
+
+    server.await
+}
+
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    let mut signals = {
+        use tokio::signal::unix::{signal, SignalKind};
+        if let Ok(s) = signal(SignalKind::terminate()) {
+            s
+        } else {
+            warn!("failed to install terminate signal handler");
+            return;
+        }
+    };
+    #[cfg(not(unix))]
+    let mut signals = tokio::stream::pending::<()>();
+
+    tokio::select! {
+        _ = signals.next() => (),
+        s = signal::ctrl_c() => {
+            if s.is_err() {
+                warn!("failed to install CTRL+C signal handler");
+            }
+        }
+    }
 }
 
 mod filters {
