@@ -7,10 +7,10 @@ use std::fmt::Write;
 
 use anyhow::Result;
 use chrono::{NaiveTime, Weekday};
-use log::info;
+use log::{error, info};
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, UnboundedReceiver};
 
 mod api;
 mod commands;
@@ -125,20 +125,34 @@ async fn test_settings() -> Result<()> {
 }
 
 async fn run_server(webhook_url: &str) -> Result<()> {
-    let mut settings = Repository::load(SETTINGS_FILE).await?;
-    let (tx, mut rx) = mpsc::unbounded_channel();
+    let settings = Repository::load(SETTINGS_FILE).await?;
+    let (tx, rx) = mpsc::unbounded_channel();
 
-    let handle = tokio::spawn(slack::event::run_server(tx));
+    let server = tokio::spawn(slack::event::run_server(tx));
+    let handler = tokio::spawn(handle_events(webhook_url.to_owned(), settings, rx));
 
+    tokio::select! {
+        res = server => res?,
+        _ = handler => ()
+    }
+
+    Ok(())
+}
+
+async fn handle_events(
+    webhook_url: String,
+    mut settings: Repository,
+    mut rx: UnboundedReceiver<AppMention>,
+) {
     while let Some(AppMention { user, text, .. }) = rx.recv().await {
         let prefix = if let Some(idx) = text.find("> ") {
             idx + 2
         } else {
-            slack::webhook::send(
-                webhook_url,
+            webhook_send(
+                &webhook_url,
                 &format!("<@{}> messages must start with a mention", user),
             )
-            .await?;
+            .await;
             continue;
         };
 
@@ -149,14 +163,31 @@ async fn run_server(webhook_url: &str) -> Result<()> {
                 Command::Stats => stats(&settings).await,
                 Command::Help => help().await,
                 Command::Schedule(weekday, time) => schedule(&mut settings, weekday, time).await,
-            }?,
-            Err(e) => format!("Unknown command:\n```{}```", e),
+            },
+            Err(e) => Ok(format!("Unknown command:\n```{}```", e)),
         };
-        slack::webhook::send(webhook_url, &response).await?;
-    }
 
-    handle.await?;
-    Ok(())
+        match response {
+            Ok(message) => webhook_send(&webhook_url, &message).await,
+            Err(e) => {
+                error!("Error during command processing: {}", e);
+                webhook_send(
+                    &webhook_url,
+                    &format!(
+                        "Sorry <@{}>, something went wrong while processing your command",
+                        user
+                    ),
+                )
+                .await
+            }
+        }
+    }
+}
+
+async fn webhook_send(webhook_url: &str, text: &str) {
+    if let Err(e) = slack::webhook::send(webhook_url, text).await {
+        error!("Error during message sending by webhook: {}", e);
+    }
 }
 
 async fn add_user(settings: &mut Repository, username: String) -> Result<String> {
