@@ -136,7 +136,7 @@ async fn run_server(webhook_url: &str) -> Result<()> {
         } else {
             slack::webhook::send(
                 webhook_url,
-                &format!("<@{}>messages must start with a metion", user),
+                &format!("<@{}> messages must start with a mention", user),
             )
             .await?;
             continue;
@@ -219,6 +219,7 @@ Here are all the commands I know:
 - `add <user>`: Add a Codewars user to the statistics report.
 - `remove <user>`: Remove a Codewars user from the statistics again.
 - `stats`: Show the current statistics of all tracked users.
+- `schedule on <weekday> [at <time>]`: Set a weekly schedule to send the latest stats.
 - `help`: Show this help.",
     ))
 }
