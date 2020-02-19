@@ -5,6 +5,8 @@ use tokio::stream::StreamExt;
 use tokio::sync::mpsc::UnboundedSender;
 use warp::Filter;
 
+use self::handlers::State;
+
 #[derive(Debug, Deserialize)]
 pub struct UrlVerification {
     pub challenge: String,
@@ -17,9 +19,12 @@ pub struct AppMention {
     pub channel: String,
 }
 
-pub async fn run_server(sender: UnboundedSender<AppMention>) {
+pub async fn run_server(signing_key: String, sender: UnboundedSender<AppMention>) {
     let routes = filters::index()
-        .or(filters::event(sender))
+        .or(filters::event(State {
+            signing_key,
+            sender,
+        }))
         .with(warp::log("server"));
 
     let (_, server) =
@@ -53,34 +58,43 @@ async fn shutdown_signal() {
 }
 
 mod filters {
-    use tokio::sync::mpsc::UnboundedSender;
+    use std::convert::Infallible;
+
     use warp::Filter;
 
-    use super::handlers;
-    use super::AppMention;
+    use super::handlers::{self, State};
 
     pub fn index() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         warp::get().and(warp::path::end()).map(handlers::index)
     }
 
     pub fn event(
-        sender: UnboundedSender<AppMention>,
+        state: State,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         warp::post()
             .and(warp::path!("event"))
-            .and(warp::body::json())
-            .and(warp::any().map(move || sender.clone()))
+            .and(warp::header("x-slack-signature"))
+            .and(warp::header("x-slack-request-timestamp"))
+            .and(warp::body::bytes())
+            .and(with_state(state))
             .map(handlers::event)
             .map(handlers::error)
+    }
+
+    fn with_state(state: State) -> impl Filter<Extract = (State,), Error = Infallible> + Clone {
+        warp::any().map(move || state.clone())
     }
 }
 
 mod handlers {
     #![allow(clippy::needless_pass_by_value)]
 
-    use anyhow::{anyhow, Result};
+    use anyhow::{anyhow, ensure, Result};
+    use bytes::Bytes;
+    use hmac::{Hmac, Mac};
     use log::{error, info, trace};
     use serde_json::Value;
+    use sha2::Sha256;
     use tokio::sync::mpsc::UnboundedSender;
     use warp::http::header;
     use warp::http::StatusCode;
@@ -93,11 +107,25 @@ mod handlers {
     const CALLBACK_EVENT_CALLBACK: &str = "event_callback";
     const EVENT_APP_MENTION: &str = "app_mention";
 
+    #[derive(Debug, Clone)]
+    pub struct State {
+        pub signing_key: String,
+        pub sender: UnboundedSender<AppMention>,
+    }
+
     pub fn index() -> impl warp::Reply {
         warp::reply::html(INDEX_HTML)
     }
 
-    pub fn event(mut event: Value, sender: UnboundedSender<AppMention>) -> Result<Option<String>> {
+    pub fn event(
+        signature: String,
+        timestamp: String,
+        body: Bytes,
+        state: State,
+    ) -> Result<Option<String>> {
+        let mut event =
+            verify_signature(state.signing_key.as_bytes(), signature, timestamp, &body)?;
+
         match event
             .get("type")
             .ok_or_else(|| anyhow!("missing `type` property"))?
@@ -128,7 +156,7 @@ mod handlers {
                         let event: AppMention = serde_json::from_value(event.take())?;
                         tokio::spawn(async move {
                             trace!(target:"server", "{:?}", event);
-                            sender.send(event).unwrap();
+                            state.sender.send(event).unwrap();
                         });
                     }
                     event_type => {
@@ -164,5 +192,30 @@ mod handlers {
             warp::reply::with_header(content, header::CONTENT_TYPE, "text/plain"),
             status,
         )
+    }
+
+    fn verify_signature(
+        key: &[u8],
+        signature: String,
+        timestamp: String,
+        body: &[u8],
+    ) -> Result<Value> {
+        ensure!(
+            signature.starts_with("v0="),
+            "unsupported signature version"
+        );
+
+        let sig_data = hex::decode(&signature[3..])?;
+
+        let mut mac = Hmac::<Sha256>::new_varkey(key).map_err(|_| anyhow!("Invalid key size"))?;
+
+        mac.input(b"v0:");
+        mac.input(timestamp.as_bytes());
+        mac.input(b":");
+        mac.input(body);
+
+        mac.verify(&sig_data).map_err(|e| anyhow!(e.to_string()))?;
+
+        Ok(serde_json::from_slice(body)?)
     }
 }

@@ -33,6 +33,8 @@ struct Opt {
     #[structopt(long, env, hide_env_values = true)]
     bot_token: String,
     #[structopt(long, env, hide_env_values = true)]
+    signing_key: String,
+    #[structopt(long, env, hide_env_values = true)]
     webhook_url: String,
 }
 
@@ -58,7 +60,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    run_server(&opt.webhook_url).await?;
+    run_server(opt.signing_key, opt.webhook_url).await?;
 
     Ok(())
 }
@@ -124,12 +126,12 @@ async fn test_settings() -> Result<()> {
     Ok(())
 }
 
-async fn run_server(webhook_url: &str) -> Result<()> {
+async fn run_server(signing_key: String, webhook_url: String) -> Result<()> {
     let settings = Repository::load(SETTINGS_FILE).await?;
     let (tx, rx) = mpsc::unbounded_channel();
 
-    let server = tokio::spawn(slack::event::run_server(tx));
-    let handler = tokio::spawn(handle_events(webhook_url.to_owned(), settings, rx));
+    let server = tokio::spawn(slack::event::run_server(signing_key, tx));
+    let handler = tokio::spawn(handle_events(webhook_url, settings, rx));
 
     tokio::select! {
         res = server => res?,

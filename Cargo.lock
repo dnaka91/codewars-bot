@@ -188,11 +188,14 @@ name = "codewars-bot"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "chrono",
  "console",
  "dotenv",
  "fern",
  "futures",
+ "hex",
+ "hmac",
  "log",
  "once_cell",
  "pest",
@@ -200,6 +203,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "structopt",
  "tempfile",
  "thiserror",
@@ -248,6 +252,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba125de2af0df55319f41944744ad91c71113bf74a4646efff39afe1f6842db1"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "crypto-mac"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4434400df11d95d556bac068ddfedd482915eb18fe8bea89bc80b6e4b1c179e5"
+dependencies = [
+ "generic-array",
+ "subtle",
 ]
 
 [[package]]
@@ -516,6 +530,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2c55f143919fbc0bc77e427fe2d74cf23786d7c1875666f2fde3ac3c659bb67"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "hex"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "644f9158b2f133fd50f5fb3242878846d9eb792e445c893805ff0e3824006e35"
+
+[[package]]
+name = "hmac"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5dcb5e64cda4c23119ab41ba960d1e170a774c8e4b9d9e6a9bc18aabf5e59695"
+dependencies = [
+ "crypto-mac",
+ "digest",
 ]
 
 [[package]]
@@ -1221,6 +1251,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha2"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27044adfd2e1f077f649f59deb9490d3941d674002f7d062870a60ebe9bd47a0"
+dependencies = [
+ "block-buffer",
+ "digest",
+ "fake-simd",
+ "opaque-debug",
+]
+
+[[package]]
 name = "signal-hook-registry"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1283,6 +1325,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "subtle"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d67a5a62ba6e01cb2192ff309324cb4875d0c451d55fe2319433abe7a05a8ee"
 
 [[package]]
 name = "syn"
