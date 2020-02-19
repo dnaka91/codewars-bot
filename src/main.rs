@@ -261,7 +261,8 @@ async fn help() -> Result<String> {
 Hello there, I'm a Codewars bot. You can use me by mentioning me, followed by a command.
 For example `@codewarsbot stats`.
 
-Here are all the commands I know:
+*Here are all the commands I know:*
+
 ```add <user>```
  Add a Codewars user to the statistics report.
 
