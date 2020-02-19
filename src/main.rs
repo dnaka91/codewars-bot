@@ -6,7 +6,7 @@
 use std::fmt::Write;
 
 use anyhow::Result;
-use chrono::{NaiveTime, Weekday};
+use chrono::{NaiveDate, NaiveTime, Weekday};
 use log::{error, info};
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
@@ -162,7 +162,7 @@ async fn handle_events(
             Ok(cmd) => match cmd {
                 Command::AddUser(username) => add_user(&mut settings, username).await,
                 Command::RemoveUser(username) => remove_user(&mut settings, username).await,
-                Command::Stats => stats(&settings).await,
+                Command::Stats(since) => stats(&settings, since).await,
                 Command::Help => help().await,
                 Command::Schedule(weekday, time) => schedule(&mut settings, weekday, time).await,
             },
@@ -208,7 +208,11 @@ async fn remove_user(settings: &mut Repository, username: String) -> Result<Stri
     })
 }
 
-async fn stats(settings: &Repository) -> Result<String> {
+async fn stats(settings: &Repository, since: Option<NaiveDate>) -> Result<String> {
+    use codewars::CompletedChallenge;
+
+    type ChallengeFilter = Box<dyn FnMut(&CompletedChallenge) -> bool>;
+
     let mut response = String::from("Here are the current statistics:");
     for user in settings.users() {
         let challenge_resp = codewars::completed_challenges(user).await?;
@@ -222,7 +226,16 @@ async fn stats(settings: &Repository) -> Result<String> {
             user, challenge_resp.total_items
         )?;
 
-        for challenge in challenges.into_iter().take(3) {
+        let (filter, n): (ChallengeFilter, usize) = if let Some(date) = since {
+            (
+                Box::new(move |c| c.completed_at.date().naive_local() >= date),
+                usize::max_value(),
+            )
+        } else {
+            (Box::new(|_| true), 3)
+        };
+
+        for challenge in challenges.into_iter().filter(filter).take(n) {
             if let Some(name) = challenge.name {
                 write!(
                     &mut response,
@@ -249,11 +262,25 @@ Hello there, I'm a Codewars bot. You can use me by mentioning me, followed by a 
 For example `@codewarsbot stats`.
 
 Here are all the commands I know:
-- `add <user>`: Add a Codewars user to the statistics report.
-- `remove <user>`: Remove a Codewars user from the statistics again.
-- `stats`: Show the current statistics of all tracked users.
-- `schedule on <weekday> [at <time>]`: Set a weekly schedule to send the latest stats.
-- `help`: Show this help.",
+```add <user>```
+ Add a Codewars user to the statistics report.
+
+```remove <user>```
+Remove a Codewars user from the statistics again.
+
+```stats [since <date>]```
+Show the current statistics of all tracked users.
+- The format of `<date>` is `YYYY/MM/DD`, for example `2020/02/12` or `2020/1/2`.
+- The date is optional.
+
+```schedule on <weekday> [at <time>]```
+Set a weekly schedule to send the latest stats.
+- The format of `<weekday>` is the weekday name in short or long form, for example `wed` or `Friday`.
+- The format of `<time>` is `HH:MM`, for example `12:25` or `01:00`.
+- The time is optional and defaults to `10:00`.
+
+```help```
+Show this help.",
     ))
 }
 

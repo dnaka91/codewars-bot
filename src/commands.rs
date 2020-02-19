@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Result};
-use chrono::{NaiveTime, Weekday};
+use chrono::{NaiveDate, NaiveTime, Weekday};
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -12,7 +12,7 @@ struct CommandParser;
 pub enum Command {
     AddUser(String),
     RemoveUser(String),
-    Stats,
+    Stats(Option<NaiveDate>),
     Help,
     Schedule(Weekday, NaiveTime),
 }
@@ -43,7 +43,13 @@ pub fn parse(cmd: &str) -> Result<Command> {
                 .as_str()
                 .to_owned(),
         ),
-        Rule::stats => Command::Stats,
+        Rule::stats => {
+            let mut args = command.into_inner();
+            Command::Stats(args.next().map_or_else(
+                || Ok(None),
+                |d| NaiveDate::parse_from_str(d.as_str(), "%Y/%m/%d").map(Some),
+            )?)
+        }
         Rule::help => Command::Help,
         Rule::schedule => {
             let mut args = command.into_inner();
@@ -89,7 +95,14 @@ mod tests {
 
     #[test]
     fn parse_stats() {
-        assert_eq!(Some(Command::Stats), parse("stats").ok());
+        assert_eq!(Some(Command::Stats(None)), parse("stats").ok());
+        assert_eq!(
+            Some(Command::Stats(Some(NaiveDate::from_ymd(2020, 2, 5)))),
+            parse("stats since 2020/02/05").ok()
+        );assert_eq!(
+            Some(Command::Stats(Some(NaiveDate::from_ymd(2020, 1, 3)))),
+            parse("stats since 2020/1/3").ok()
+        );
     }
 
     #[test]

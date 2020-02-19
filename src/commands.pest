@@ -2,7 +2,8 @@ username = @{ (ASCII_ALPHANUMERIC | PUNCTUATION)+ }
 add = { "add" ~ username }
 remove = { ("remove" | "rm") ~ username }
 
-stats = { "stats" }
+date = @{ ASCII_DIGIT{4} ~ "/" ~ ASCII_DIGIT{1,2} ~ "/" ~ ASCII_DIGIT{1,2} }
+stats = { "stats" ~ ("since" ~ date)? }
 help = { "help" }
 
 weekday = @{ (
