@@ -75,6 +75,7 @@ mod filters {
             .and(warp::path!("event"))
             .and(warp::header("x-slack-signature"))
             .and(warp::header("x-slack-request-timestamp"))
+            .and(warp::body::content_length_limit(1024 * 5))
             .and(warp::body::bytes())
             .and(with_state(state))
             .map(handlers::event)
