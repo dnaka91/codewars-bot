@@ -10,10 +10,11 @@ use chrono::{NaiveDate, NaiveTime, Weekday};
 use log::{error, info};
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
-use tokio::sync::mpsc::{self, UnboundedReceiver};
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 mod api;
 mod commands;
+mod scheduling;
 mod storage;
 
 use crate::api::slack::event::AppMention;
@@ -126,12 +127,39 @@ async fn test_settings() -> Result<()> {
     Ok(())
 }
 
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+
+struct StatsTask(Arc<Mutex<Repository>>);
+
+#[async_trait::async_trait]
+impl<'a> scheduling::Task for StatsTask {
+    async fn run(&self) {
+        stats(&self.0, None).await.ok();
+    }
+}
+
 async fn run_server(signing_key: String, webhook_url: String) -> Result<()> {
     let settings = Repository::load(SETTINGS_FILE).await?;
+    let settings = Arc::new(Mutex::new(settings));
     let (tx, rx) = mpsc::unbounded_channel();
 
+    let (s_tx, s_rx) = mpsc::unbounded_channel();
+    tokio::spawn(scheduling::run::<scheduling::WeeklyScheduler, _>(
+        s_rx,
+        StatsTask(settings.clone()),
+    ));
+
+    let msg = {
+        let l = settings.lock().await;
+        let s = l.schedule();
+        (s.weekday, s.time)
+    };
+    s_tx.send(msg)?;
+
     let server = tokio::spawn(slack::event::run_server(signing_key, tx));
-    let handler = tokio::spawn(handle_events(webhook_url, settings, rx));
+    let handler = tokio::spawn(handle_events(webhook_url, settings.clone(), rx, s_tx));
 
     tokio::select! {
         res = server => res?,
@@ -143,8 +171,9 @@ async fn run_server(signing_key: String, webhook_url: String) -> Result<()> {
 
 async fn handle_events(
     webhook_url: String,
-    mut settings: Repository,
+    settings: Arc<Mutex<Repository>>,
     mut rx: UnboundedReceiver<AppMention>,
+    s_tx: UnboundedSender<(Weekday, NaiveTime)>,
 ) {
     while let Some(AppMention { user, text, .. }) = rx.recv().await {
         let prefix = if let Some(idx) = text.find("> ") {
@@ -160,11 +189,11 @@ async fn handle_events(
 
         let response = match commands::parse(&text[prefix..]) {
             Ok(cmd) => match cmd {
-                Command::AddUser(username) => add_user(&mut settings, username).await,
-                Command::RemoveUser(username) => remove_user(&mut settings, username).await,
+                Command::AddUser(username) => add_user(&settings, username).await,
+                Command::RemoveUser(username) => remove_user(&settings, username).await,
                 Command::Stats(since) => stats(&settings, since).await,
                 Command::Help => help().await,
-                Command::Schedule(weekday, time) => schedule(&mut settings, weekday, time).await,
+                Command::Schedule(weekday, time) => schedule(&settings, &s_tx, weekday, time).await,
             },
             Err(e) => Ok(format!("Unknown command:\n```{}```", e)),
         };
@@ -192,29 +221,29 @@ async fn webhook_send(webhook_url: &str, text: &str) {
     }
 }
 
-async fn add_user(settings: &mut Repository, username: String) -> Result<String> {
-    Ok(if settings.add_user(&username).await? {
+async fn add_user(settings: &Arc<Mutex<Repository>>, username: String) -> Result<String> {
+    Ok(if settings.lock().await.add_user(&username).await? {
         format!("Added user `{}` to watchlist", username)
     } else {
         format!("User `{}` is already in the watchlist", username)
     })
 }
 
-async fn remove_user(settings: &mut Repository, username: String) -> Result<String> {
-    Ok(if settings.remove_user(&username).await? {
+async fn remove_user(settings: &Arc<Mutex<Repository>>, username: String) -> Result<String> {
+    Ok(if settings.lock().await.remove_user(&username).await? {
         format!("Removed user `{}` from watchlist", username)
     } else {
         format!("User `{}` is not in the watchlist", username)
     })
 }
 
-async fn stats(settings: &Repository, since: Option<NaiveDate>) -> Result<String> {
+async fn stats(settings: &Arc<Mutex<Repository>>, since: Option<NaiveDate>) -> Result<String> {
     use codewars::CompletedChallenge;
 
     type ChallengeFilter = Box<dyn FnMut(&CompletedChallenge) -> bool>;
 
     let mut response = String::from("Here are the current statistics:");
-    for user in settings.users() {
+    for user in settings.lock().await.users() {
         let challenge_resp = codewars::completed_challenges(user).await?;
         let mut challenges = challenge_resp.data;
         challenges.sort_by(|a, b| a.completed_at.cmp(&b.completed_at));
@@ -285,12 +314,20 @@ Show this help.",
     ))
 }
 
-async fn schedule(settings: &mut Repository, weekday: Weekday, time: NaiveTime) -> Result<String> {
+async fn schedule(
+    settings: &Arc<Mutex<Repository>>,
+    s_tx: &UnboundedSender<(Weekday, NaiveTime)>,
+    weekday: Weekday,
+    time: NaiveTime,
+) -> Result<String> {
     Ok(
         if settings
+            .lock()
+            .await
             .set_schedule(storage::Schedule { weekday, time })
             .await?
         {
+            s_tx.send((weekday, time)).ok();
             format!(
                 "Weekly schedule updated to send stats on `{}s` at `{}`",
                 match weekday {

@@ -99,7 +99,8 @@ mod tests {
         assert_eq!(
             Some(Command::Stats(Some(NaiveDate::from_ymd(2020, 2, 5)))),
             parse("stats since 2020/02/05").ok()
-        );assert_eq!(
+        );
+        assert_eq!(
             Some(Command::Stats(Some(NaiveDate::from_ymd(2020, 1, 3)))),
             parse("stats since 2020/1/3").ok()
         );
