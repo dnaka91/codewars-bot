@@ -137,6 +137,10 @@ struct StatsTask(Arc<Mutex<Repository>>);
 
 #[async_trait]
 impl<'a> scheduling::Task for StatsTask {
+    fn name() -> &'static str {
+        "stats"
+    }
+
     async fn run(&self) {
         stats(&self.0, None).await.ok();
     }
@@ -146,6 +150,10 @@ struct NotifyTask(Arc<Mutex<Repository>>);
 
 #[async_trait]
 impl<'a> scheduling::Task for NotifyTask {
+    fn name() -> &'static str {
+        "notify"
+    }
+
     async fn run(&self) {
         stats(
             &self.0,

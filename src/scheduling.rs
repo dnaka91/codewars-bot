@@ -11,10 +11,12 @@ const DURATION_MAX: TokioDuration = TokioDuration::from_secs(100_000);
 
 #[async_trait]
 pub trait Task {
+    fn name() -> &'static str;
+
     async fn run(&self);
 }
 
-#[allow(clippy::cast_sign_loss)]
+#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub async fn run<S, T>(mut rx: UnboundedReceiver<S::Input>, task: T)
 where
     S: Scheduler,
@@ -27,13 +29,13 @@ where
     loop {
         duration = tokio::select! {
             _ = delayed.clone() => {
-                trace!("Executing task");
+                trace!("Executing {} task", T::name());
                 task.run().await;
 
                 duration
             },
             Some(schedule) = rx.recv() => {
-                trace!("Got new schedule");
+                trace!("Got new {} schedule", T::name());
                 handle.abort();
 
                 let duration = S::next(schedule);
@@ -52,15 +54,22 @@ where
             handle = h;
 
             debug!(
-                "Next scheduled task: {}",
-                humantime::Duration::from(duration)
+                "Next scheduled {} task in {} ({})",
+                T::name(),
+                humantime::Duration::from(duration),
+                Local::now()
+                    + if let Ok(d) = Duration::from_std(duration) {
+                        d
+                    } else {
+                        Duration::seconds(duration.as_secs() as i64)
+                    }
             );
         } else {
             let (d, h) = future::abortable(future::pending());
             delayed = d.boxed().shared();
             handle = h;
 
-            debug!("Schedule disabled")
+            debug!("Schedule for {} disabled", T::name())
         }
     }
 }
@@ -126,6 +135,10 @@ mod tests {
 
     #[async_trait]
     impl Task for FakeTask {
+        fn name() -> &'static str {
+            "fake"
+        }
+
         async fn run(&self) {
             debug!("fake task")
         }
