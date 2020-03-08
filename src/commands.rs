@@ -15,6 +15,7 @@ pub enum Command {
     Stats(Option<NaiveDate>),
     Help,
     Schedule(Weekday, NaiveTime),
+    Notify(bool),
 }
 
 pub fn parse(cmd: &str) -> Result<Command> {
@@ -64,6 +65,19 @@ pub fn parse(cmd: &str) -> Result<Command> {
                     |t| NaiveTime::parse_from_str(t.as_str(), "%R"),
                 )?,
             )
+        }
+        Rule::notify => {
+            let boolean = command
+                .into_inner()
+                .next()
+                .ok_or_else(|| anyhow!("boolean missing"))?
+                .as_str();
+            let on_off = match boolean {
+                "on" => true,
+                "off" => false,
+                _ => bail!("invalid boolean"),
+            };
+            Command::Notify(on_off)
         }
         _ => bail!("unknown command"),
     })

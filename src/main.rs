@@ -6,7 +6,9 @@
 use std::fmt::Write;
 
 use anyhow::Result;
-use chrono::{NaiveDate, NaiveTime, Weekday};
+use async_trait::async_trait;
+use chrono::prelude::*;
+use chrono::Duration;
 use log::{error, info};
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
@@ -133,10 +135,24 @@ use tokio::sync::Mutex;
 
 struct StatsTask(Arc<Mutex<Repository>>);
 
-#[async_trait::async_trait]
+#[async_trait]
 impl<'a> scheduling::Task for StatsTask {
     async fn run(&self) {
         stats(&self.0, None).await.ok();
+    }
+}
+
+struct NotifyTask(Arc<Mutex<Repository>>);
+
+#[async_trait]
+impl<'a> scheduling::Task for NotifyTask {
+    async fn run(&self) {
+        stats(
+            &self.0,
+            Some(Local::now().naive_local() - Duration::hours(3)),
+        )
+        .await
+        .ok();
     }
 }
 
@@ -158,8 +174,22 @@ async fn run_server(signing_key: String, webhook_url: String) -> Result<()> {
     };
     s_tx.send(msg)?;
 
+    let (n_tx, n_rx) = mpsc::unbounded_channel();
+    tokio::spawn(scheduling::run::<scheduling::HourlyScheduler, _>(
+        n_rx,
+        NotifyTask(settings.clone()),
+    ));
+
+    let msg = {
+        let l = settings.lock().await;
+        l.notify()
+    };
+    if msg {
+        n_tx.send(Some(3))?;
+    }
+
     let server = tokio::spawn(slack::event::run_server(signing_key, tx));
-    let handler = tokio::spawn(handle_events(webhook_url, settings.clone(), rx, s_tx));
+    let handler = tokio::spawn(handle_events(webhook_url, settings.clone(), rx, s_tx, n_tx));
 
     tokio::select! {
         res = server => res?,
@@ -174,6 +204,7 @@ async fn handle_events(
     settings: Arc<Mutex<Repository>>,
     mut rx: UnboundedReceiver<AppMention>,
     s_tx: UnboundedSender<(Weekday, NaiveTime)>,
+    n_tx: UnboundedSender<Option<u8>>,
 ) {
     while let Some(AppMention { user, text, .. }) = rx.recv().await {
         let prefix = if let Some(idx) = text.find("> ") {
@@ -191,9 +222,10 @@ async fn handle_events(
             Ok(cmd) => match cmd {
                 Command::AddUser(username) => add_user(&settings, username).await,
                 Command::RemoveUser(username) => remove_user(&settings, username).await,
-                Command::Stats(since) => stats(&settings, since).await,
+                Command::Stats(since) => stats(&settings, since.map(|d| d.and_hms(0, 0, 0))).await,
                 Command::Help => help().await,
                 Command::Schedule(weekday, time) => schedule(&settings, &s_tx, weekday, time).await,
+                Command::Notify(on_off) => notify(&settings, &n_tx, on_off).await,
             },
             Err(e) => Ok(format!("Unknown command:\n```{}```", e)),
         };
@@ -237,7 +269,7 @@ async fn remove_user(settings: &Arc<Mutex<Repository>>, username: String) -> Res
     })
 }
 
-async fn stats(settings: &Arc<Mutex<Repository>>, since: Option<NaiveDate>) -> Result<String> {
+async fn stats(settings: &Arc<Mutex<Repository>>, since: Option<NaiveDateTime>) -> Result<String> {
     use codewars::CompletedChallenge;
 
     type ChallengeFilter = Box<dyn FnMut(&CompletedChallenge) -> bool>;
@@ -257,7 +289,7 @@ async fn stats(settings: &Arc<Mutex<Repository>>, since: Option<NaiveDate>) -> R
 
         let (filter, n): (ChallengeFilter, usize) = if let Some(date) = since {
             (
-                Box::new(move |c| c.completed_at.date().naive_local() >= date),
+                Box::new(move |c| c.completed_at.naive_local() >= date),
                 usize::max_value(),
             )
         } else {
@@ -309,6 +341,9 @@ Set a weekly schedule to send the latest stats.
 - The format of `<time>` is `HH:MM`, for example `12:25` or `01:00`.
 - The time is optional and defaults to `10:00`.
 
+```notify <on|off>```
+Send notifications whenever new challenges are completed.
+
 ```help```
 Show this help.",
     ))
@@ -345,4 +380,28 @@ async fn schedule(
             String::from("Weekly schedule already set to this weekday & time")
         },
     )
+}
+
+async fn notify(
+    settings: &Arc<Mutex<Repository>>,
+    n_tx: &UnboundedSender<Option<u8>>,
+    on_off: bool,
+) -> Result<String> {
+    Ok(if settings.lock().await.set_notify(on_off).await? {
+        let msg = if on_off { Some(3) } else { None };
+        n_tx.send(msg).ok();
+        format!(
+            "Notifications {}",
+            if on_off { "enabled" } else { "disabled" }
+        )
+    } else {
+        format!(
+            "Notifications already {}",
+            if settings.lock().await.notify() {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        )
+    })
 }

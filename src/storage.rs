@@ -12,6 +12,7 @@ pub struct Repository {
     #[serde(skip)]
     path: PathBuf,
     users: BTreeSet<String>,
+    notify: bool,
     schedule: Schedule,
 }
 
@@ -81,6 +82,20 @@ impl Repository {
             Ok(false)
         } else {
             self.schedule = schedule;
+            self.save().await?;
+            Ok(true)
+        }
+    }
+
+    pub const fn notify(&self) -> bool {
+        self.notify
+    }
+
+    pub async fn set_notify(&mut self, notify: bool) -> Result<bool> {
+        if self.notify == notify {
+            Ok(false)
+        } else {
+            self.notify = notify;
             self.save().await?;
             Ok(true)
         }

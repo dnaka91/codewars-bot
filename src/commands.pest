@@ -16,9 +16,11 @@ weekday = @{ (
     | ^"sun" ~ ^"day"?
 ) }
 time = @{ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} }
-
 schedule = { "schedule" ~ "on" ~ weekday ~ ("at" ~ time)? }
 
-command = { SOI ~ (add | remove | stats | help | schedule) ~ EOI }
+bool = { (^"on" | ^"off") }
+notify = { "notify" ~ bool }
 
-WHITESPACE = _{ " " | "\n" }
+command = { SOI ~ (add | remove | stats | help | schedule | notify) ~ EOI }
+
+WHITESPACE = _{ WHITE_SPACE | NEWLINE }

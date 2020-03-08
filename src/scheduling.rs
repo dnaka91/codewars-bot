@@ -25,31 +25,26 @@ where
     let mut delayed = delayed.boxed().shared();
 
     loop {
-        let new_duration = tokio::select! {
+        duration = tokio::select! {
             _ = delayed.clone() => {
                 trace!("Executing task");
                 task.run().await;
 
-                None
+                duration
             },
             Some(schedule) = rx.recv() => {
                 trace!("Got new schedule");
                 handle.abort();
 
                 let duration = S::next(schedule);
-                let duration = if let Ok(d) = duration.to_std(){
+
+                duration.map(|d| if let Ok(d) = d.to_std(){
                     d
                 } else{
-                    TokioDuration::from_secs(duration.num_seconds() as u64)
-                };
-
-                Some(duration)
+                    TokioDuration::from_secs(d.num_seconds() as u64)
+                })
             }
         };
-
-        if let Some(new_duration) = new_duration {
-            duration = Some(new_duration)
-        }
 
         if let Some(duration) = duration {
             let (d, h) = future::abortable(tokio::time::delay_for(duration));
@@ -60,6 +55,12 @@ where
                 "Next scheduled task: {}",
                 humantime::Duration::from(duration)
             );
+        } else {
+            let (d, h) = future::abortable(future::pending());
+            delayed = d.boxed().shared();
+            handle = h;
+
+            debug!("Schedule disabled")
         }
     }
 }
@@ -67,7 +68,7 @@ where
 pub trait Scheduler {
     type Input;
 
-    fn next(input: Self::Input) -> Duration;
+    fn next(input: Self::Input) -> Option<Duration>;
 }
 
 pub struct WeeklyScheduler;
@@ -75,7 +76,7 @@ pub struct WeeklyScheduler;
 impl Scheduler for WeeklyScheduler {
     type Input = (Weekday, NaiveTime);
 
-    fn next((weekday, time): Self::Input) -> Duration {
+    fn next((weekday, time): Self::Input) -> Option<Duration> {
         let now = Local::now().naive_local();
         let mut next = now.date();
 
@@ -87,17 +88,17 @@ impl Scheduler for WeeklyScheduler {
             }
         }
 
-        next.and_time(time) - now
+        Some(next.and_time(time) - now)
     }
 }
 
 pub struct HourlyScheduler;
 
 impl Scheduler for HourlyScheduler {
-    type Input = i64;
+    type Input = Option<u8>;
 
-    fn next(duration: Self::Input) -> Duration {
-        Duration::hours(duration)
+    fn next(duration: Self::Input) -> Option<Duration> {
+        duration.map(|d| Duration::hours(i64::from(d)))
     }
 }
 
@@ -116,8 +117,8 @@ mod tests {
     impl Scheduler for FakeScheduler {
         type Input = ();
 
-        fn next(_: Self::Input) -> Duration {
-            Duration::milliseconds(50)
+        fn next(_: Self::Input) -> Option<Duration> {
+            Some(Duration::milliseconds(50))
         }
     }
 
