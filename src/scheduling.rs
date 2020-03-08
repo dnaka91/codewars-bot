@@ -56,7 +56,10 @@ where
             delayed = d.boxed().shared();
             handle = h;
 
-            debug!("Next scheduled task: {}", humantime::Duration::from(duration));
+            debug!(
+                "Next scheduled task: {}",
+                humantime::Duration::from(duration)
+            );
         }
     }
 }

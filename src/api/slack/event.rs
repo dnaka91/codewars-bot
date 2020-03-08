@@ -1,4 +1,4 @@
-use log::warn;
+use log::{info, warn};
 use serde::Deserialize;
 use tokio::signal;
 use tokio::stream::StreamExt;
@@ -27,9 +27,10 @@ pub async fn run_server(signing_key: String, sender: UnboundedSender<AppMention>
         }))
         .with(warp::log("server"));
 
-    let (_, server) =
-        warp::serve(routes).bind_with_graceful_shutdown(([127, 0, 0, 1], 8080), shutdown_signal());
+    let (addr, server) =
+        warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], 8080), shutdown_signal());
 
+    info!(target:"server", "listening on {}", addr);
     server.await
 }
 
@@ -55,6 +56,8 @@ async fn shutdown_signal() {
             }
         }
     }
+
+    info!(target:"server", "shutting down");
 }
 
 mod filters {
