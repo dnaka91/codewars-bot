@@ -7,7 +7,7 @@ use warp::Filter;
 use self::handlers::State;
 use crate::api::slack::event::AppMention;
 
-pub async fn run(signing_key: String, sender: UnboundedSender<AppMention>) {
+pub async fn run(port: u16, signing_key: String, sender: UnboundedSender<AppMention>) {
     let routes = filters::index()
         .or(filters::event(State {
             signing_key,
@@ -16,7 +16,7 @@ pub async fn run(signing_key: String, sender: UnboundedSender<AppMention>) {
         .with(warp::log("server"));
 
     let (addr, server) =
-        warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], 8080), shutdown_signal());
+        warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], port), shutdown_signal());
 
     info!("listening on {}", addr);
     server.await

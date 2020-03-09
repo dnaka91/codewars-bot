@@ -3,15 +3,17 @@
 #![warn(clippy::nursery)]
 
 use std::fmt::Write;
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::prelude::*;
 use chrono::Duration;
-use log::{error, info};
+use log::error;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::Mutex;
 
 mod api;
 mod commands;
@@ -27,25 +29,17 @@ use crate::storage::Repository;
 const SETTINGS_FILE: &str = "settings.toml";
 
 #[derive(Debug, StructOpt)]
-#[structopt(setting = AppSettings::ColoredHelp)]
+#[structopt(about, author, setting = AppSettings::ColoredHelp)]
 struct Opt {
-    #[structopt(subcommand)]
-    cmd: Option<Subcommand>,
-    #[structopt(long, env, hide_env_values = true)]
-    app_token: String,
-    #[structopt(long, env, hide_env_values = true)]
-    bot_token: String,
+    /// Port to listen for connections.
+    #[structopt(long, env, default_value = "8080")]
+    port: u16,
+    /// Signing key to verify HTTP calls come from Slack.
     #[structopt(long, env, hide_env_values = true)]
     signing_key: String,
+    /// Webhook URL to post messages to a Slack channel.
     #[structopt(long, env, hide_env_values = true)]
     webhook_url: String,
-}
-
-#[derive(Debug, StructOpt)]
-enum Subcommand {
-    /// Test the current settings for debugging.
-    #[structopt(setting = AppSettings::ColoredHelp)]
-    TestSettings,
 }
 
 #[tokio::main]
@@ -56,14 +50,7 @@ async fn main() -> Result<()> {
 
     setup_logger()?;
 
-    if let Some(cmd) = opt.cmd {
-        match cmd {
-            Subcommand::TestSettings => test_settings().await?,
-        }
-        return Ok(());
-    }
-
-    run_server(opt.signing_key, opt.webhook_url).await?;
+    run_server(opt.port, opt.signing_key, opt.webhook_url).await?;
 
     Ok(())
 }
@@ -115,24 +102,6 @@ fn setup_logger() -> Result<()> {
         .map_err(Into::into)
 }
 
-async fn test_settings() -> Result<()> {
-    let settings = Repository::load(SETTINGS_FILE).await?;
-    for user in settings.users() {
-        info!("loading codewars user data for `{}`", user);
-        tokio::try_join!(
-            codewars::user(user),
-            codewars::completed_challenges(user),
-            codewars::authored_challenges(user),
-        )?;
-    }
-
-    Ok(())
-}
-
-use std::sync::Arc;
-
-use tokio::sync::Mutex;
-
 struct StatsTask {
     repo: Arc<Mutex<Repository>>,
     webhook_url: String,
@@ -176,7 +145,7 @@ impl<'a> scheduling::Task for NotifyTask {
     }
 }
 
-async fn run_server(signing_key: String, webhook_url: String) -> Result<()> {
+async fn run_server(port: u16, signing_key: String, webhook_url: String) -> Result<()> {
     let settings = Repository::load(SETTINGS_FILE).await?;
     let settings = Arc::new(Mutex::new(settings));
     let (tx, rx) = mpsc::unbounded_channel();
@@ -214,7 +183,7 @@ async fn run_server(signing_key: String, webhook_url: String) -> Result<()> {
         n_tx.send(Some(3))?;
     }
 
-    let server = tokio::spawn(server::run(signing_key, tx));
+    let server = tokio::spawn(server::run(port, signing_key, tx));
     let handler = tokio::spawn(handle_events(webhook_url, settings.clone(), rx, s_tx, n_tx));
 
     tokio::select! {
