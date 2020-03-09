@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::all, clippy::pedantic)]
 #![warn(clippy::nursery)]
-#![allow(dead_code)]
 
 use std::fmt::Write;
 

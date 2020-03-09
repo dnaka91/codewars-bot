@@ -92,10 +92,6 @@ mod handlers {
 
     const INDEX_HTML: &[u8] = include_bytes!("index.html");
 
-    const CALLBACK_URL_VERIFICATION: &str = "url_verification";
-    const CALLBACK_EVENT_CALLBACK: &str = "event_callback";
-    const EVENT_APP_MENTION: &str = "app_mention";
-
     #[derive(Debug, Clone)]
     pub struct State {
         pub signing_key: String,

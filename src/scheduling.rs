@@ -7,8 +7,6 @@ use log::{debug, trace};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::Duration as TokioDuration;
 
-const DURATION_MAX: TokioDuration = TokioDuration::from_secs(100_000);
-
 #[async_trait]
 pub trait Task {
     fn name() -> &'static str;
