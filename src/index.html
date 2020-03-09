@@ -17,15 +17,100 @@
     <section class="section">
       <div class="container">
         <div class="columns is-centered">
-          <div class="column card is-half">
-            <h1 class="title">
-              Codewars Bot
-            </h1>
-            <p class="subtitle">
-              Get your <strong>Codewars</strong> statistics into <strong>Slack</strong>!
-            </p>
+          <div class="column is-8">
+            <div class="card">
+              <div class="card-content">
+                <h1 class="title">
+                  Codewars Bot
+                </h1>
+                <p class="subtitle">
+                  Get your <strong>Codewars</strong> statistics into <strong>Slack</strong>!
+                </p>
+              </div>
+            </div>
           </div>
         </div>
+
+        <div class="columns is-centered">
+          <div class="column is-8">
+            <div class="card">
+              <div class="card-content">
+                <h2 class="title">
+                  Commands
+                </h2>
+                <p class="subtitle">
+                  This are all the available commands the bot understands.
+
+                </p>
+                <div class="content">
+                  <p>
+                    Elements in angle brackets (<code>&lt;</code> and <code>&gt;</code>) are required values used as arguments to the commands.
+                    <br/>
+                    Elements in brackets (<code>[</code> and <code>]</code>) are optional components of the commands and can be omitted.
+                  </p>
+
+                  <h3>Add user</h3>
+                  <p>
+                    Syntax: <code>add &lt;user&gt;</code>
+                  </p>
+                  <p>
+                    Add a Codewars user to the statistics report.
+                  </p>
+
+                  <h3>Remove user</h3>
+                  <p>
+                    Syntax: <code>remove &lt;user&gt;</code>
+                  </p>
+                  <p>
+                    Remove a Codewars user from the statistics again.
+                  </p>
+
+                  <h3>Stats</h3>
+                  <p>
+                    Syntax: <code>stats [since &lt;date&gt;]</code>
+                  </p>
+                  <p>
+                    Show the current statistics of all tracked users.
+                    <ul>
+                      <li>The format of <code>&lt;date&gt;</code> is <code>YYYY/MM/DD</code>, for example <code>2020/02/12</code> or <code>2020/1/2</code>.</li>
+                      <li>The date is optional.</li>
+                    </ul>
+                  </p>
+
+                  <h3>Schedule</h3>
+                  <p>
+                    Syntax: <code>schedule on &lt;weekday&gt; [at &lt;time&gt;]</code>
+                  </p>
+                  <p>
+                    Set a weekly schedule to send the latest stats.
+                    <ul>
+                      <li>The format of <code>&lt;weekday&gt;</code> is the weekday name in short or long form, for example <code>wed</code> or <code>Friday</code>.</li>
+                      <li>The format of <code>&lt;time&gt;</code> is <code>HH:MM</code>, for example <code>12:15</code> or <code>01:00</code>.</li>
+                      <li>The time is optional and defaults to <code>10:00</code></li>
+                    </ul>
+                  </p>
+
+                  <h3>Notify</h3>
+                  <p>
+                    Syntax: <code>notify &lt;on|off&gt;</code>
+                  </p>
+                  <p>
+                    Send notifications whenever new challenges are completed.
+                  </p>
+
+                  <h3>Help</h3>
+                  <p>
+                    Syntax: <code>help</code>
+                  </p>
+                  <p>
+                    Show this help.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
   </body>
