@@ -17,6 +17,7 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 mod api;
 mod commands;
 mod scheduling;
+mod server;
 mod storage;
 
 use crate::api::slack::event::AppMention;
@@ -133,7 +134,10 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
-struct StatsTask(Arc<Mutex<Repository>>);
+struct StatsTask {
+    repo: Arc<Mutex<Repository>>,
+    webhook_url: String,
+}
 
 #[async_trait]
 impl<'a> scheduling::Task for StatsTask {
@@ -142,11 +146,17 @@ impl<'a> scheduling::Task for StatsTask {
     }
 
     async fn run(&self) {
-        stats(&self.0, None).await.ok();
+        match stats(&self.repo, None).await {
+            Ok(msg) => webhook_send(&self.webhook_url, &msg).await,
+            Err(e) => error!("Error collecting scheduled stats: {}", e),
+        }
     }
 }
 
-struct NotifyTask(Arc<Mutex<Repository>>);
+struct NotifyTask {
+    repo: Arc<Mutex<Repository>>,
+    webhook_url: String,
+}
 
 #[async_trait]
 impl<'a> scheduling::Task for NotifyTask {
@@ -155,12 +165,15 @@ impl<'a> scheduling::Task for NotifyTask {
     }
 
     async fn run(&self) {
-        stats(
-            &self.0,
+        match stats(
+            &self.repo,
             Some(Local::now().naive_local() - Duration::hours(3)),
         )
         .await
-        .ok();
+        {
+            Ok(msg) => webhook_send(&self.webhook_url, &msg).await,
+            Err(e) => error!("Error collecting stats for notification: {}", e),
+        }
     }
 }
 
@@ -172,7 +185,10 @@ async fn run_server(signing_key: String, webhook_url: String) -> Result<()> {
     let (s_tx, s_rx) = mpsc::unbounded_channel();
     tokio::spawn(scheduling::run::<scheduling::WeeklyScheduler, _>(
         s_rx,
-        StatsTask(settings.clone()),
+        StatsTask {
+            repo: settings.clone(),
+            webhook_url: webhook_url.clone(),
+        },
     ));
 
     let msg = {
@@ -185,7 +201,10 @@ async fn run_server(signing_key: String, webhook_url: String) -> Result<()> {
     let (n_tx, n_rx) = mpsc::unbounded_channel();
     tokio::spawn(scheduling::run::<scheduling::HourlyScheduler, _>(
         n_rx,
-        NotifyTask(settings.clone()),
+        NotifyTask {
+            repo: settings.clone(),
+            webhook_url: webhook_url.clone(),
+        },
     ));
 
     let msg = {
@@ -196,7 +215,7 @@ async fn run_server(signing_key: String, webhook_url: String) -> Result<()> {
         n_tx.send(Some(3))?;
     }
 
-    let server = tokio::spawn(slack::event::run_server(signing_key, tx));
+    let server = tokio::spawn(server::run(signing_key, tx));
     let handler = tokio::spawn(handle_events(webhook_url, settings.clone(), rx, s_tx, n_tx));
 
     tokio::select! {
