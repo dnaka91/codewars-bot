@@ -1,8 +1,9 @@
-use anyhow::{anyhow, ensure, Result};
 use hmac::{Hmac, Mac};
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::Sha256;
+
+use super::{Error, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct UrlVerification {
@@ -17,21 +18,20 @@ pub struct AppMention {
 }
 
 pub fn verify_signature(key: &[u8], signature: &str, timestamp: &str, body: &[u8]) -> Result<()> {
-    ensure!(
-        signature.starts_with("v0="),
-        "unsupported signature version"
-    );
+    if !signature.starts_with("v0=") {
+        return Err(Error::UnsupportedSignatureVersion);
+    }
 
     let sig_data = hex::decode(&signature[3..])?;
 
-    let mut mac = Hmac::<Sha256>::new_varkey(key).map_err(|_| anyhow!("Invalid key size"))?;
+    let mut mac = Hmac::<Sha256>::new_varkey(key).map_err(|_| Error::HmacKeyLength)?;
 
     mac.input(b"v0:");
     mac.input(timestamp.as_bytes());
     mac.input(b":");
     mac.input(body);
 
-    mac.verify(&sig_data).map_err(|e| anyhow!(e.to_string()))?;
+    mac.verify(&sig_data).map_err(|_| Error::MacVerify)?;
 
     Ok(())
 }
@@ -49,9 +49,9 @@ pub fn parse_callback(mut event: Value) -> Result<Callback> {
     Ok(
         match event
             .get("type")
-            .ok_or_else(|| anyhow!("missing `type` property"))?
+            .ok_or_else(|| Error::JsonMissingProperty("type"))?
             .as_str()
-            .ok_or_else(|| anyhow!("type is not a string"))?
+            .ok_or_else(|| Error::JsonWrongType("type", "string"))?
         {
             CALLBACK_URL_VERIFICATION => {
                 let event: UrlVerification = serde_json::from_value(event)?;
@@ -60,7 +60,7 @@ pub fn parse_callback(mut event: Value) -> Result<Callback> {
             CALLBACK_EVENT_CALLBACK => {
                 let event = event
                     .get_mut("event")
-                    .ok_or_else(|| anyhow!("missing `event` property"))?;
+                    .ok_or_else(|| Error::JsonMissingProperty("event"))?;
 
                 Callback::Event(event.take())
             }
@@ -81,11 +81,11 @@ pub fn parse_event(mut event: Value) -> Result<Event> {
     Ok(
         match event
             .as_object()
-            .ok_or_else(|| anyhow!("event is not an object"))?
+            .ok_or_else(|| Error::JsonWrongType("event", "object"))?
             .get("type")
-            .ok_or_else(|| anyhow!("missing `type` property"))?
+            .ok_or_else(|| Error::JsonMissingProperty("type"))?
             .as_str()
-            .ok_or_else(|| anyhow!("type is not a string"))?
+            .ok_or_else(|| Error::JsonWrongType("type", "string"))?
         {
             EVENT_APP_MENTION => {
                 let event: AppMention = serde_json::from_value(event.take())?;

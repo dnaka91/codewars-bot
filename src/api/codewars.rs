@@ -13,12 +13,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Status code didn't indicate success (code {0})")]
-    UnsuccessfulStatus(u16),
     #[error("Error during HTTP handling")]
     Http(#[from] reqwest::Error),
     #[error("URL handling failed")]
     UrlParse(#[from] url::ParseError),
+    #[error("Status code didn't indicate success (code {0})")]
+    UnsuccessfulStatus(u16),
 }
 
 #[derive(Debug, Deserialize)]

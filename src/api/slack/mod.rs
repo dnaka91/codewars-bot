@@ -21,12 +21,24 @@ pub enum Error {
     EnvVar(#[from] std::env::VarError),
     #[error("Error during JSON (de-)serialization")]
     Json(#[from] serde_json::Error),
+    #[error("Conversion from hex string failed")]
+    Hex(#[from] hex::FromHexError),
     #[error("Failed sending a request to get {0}: {1}")]
     UnsuccessfulRequest(&'static str, String),
     #[error("Status code didn't indicate success (code {0})")]
     UnsuccessfulStatus(u16),
     #[error("Response JSON is not in the expected format")]
     InvalidJson,
+    #[error("Invalid HMAC key length")]
+    HmacKeyLength,
+    #[error("MAC verification error")]
+    MacVerify,
+    #[error("Missing `{0}` property in JSON object")]
+    JsonMissingProperty(&'static str),
+    #[error("JSON value `{0}` is not a {1}")]
+    JsonWrongType(&'static str, &'static str),
+    #[error("Unsupported signature version")]
+    UnsupportedSignatureVersion,
 }
 
 #[derive(Debug, Serialize)]

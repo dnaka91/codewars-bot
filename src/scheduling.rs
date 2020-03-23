@@ -145,7 +145,7 @@ mod tests {
     fn init() {
         INIT.call_once(|| {
             std::env::set_var("RUST_LOG", "codewars_bot");
-            pretty_env_logger::try_init().ok();
+            env_logger::try_init().ok();
         });
     }
 
