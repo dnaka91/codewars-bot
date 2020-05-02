@@ -1,6 +1,9 @@
+//! # Codewars Bot (for Slack)
+
 #![forbid(unsafe_code)]
 #![deny(clippy::all, clippy::pedantic)]
 #![warn(clippy::nursery)]
+#![allow(clippy::wildcard_imports)]
 
 use std::fmt::Write;
 use std::sync::Arc;

@@ -38,7 +38,7 @@ where
 
                 let duration = S::next(schedule);
 
-                duration.map(|d| if let Ok(d) = d.to_std(){
+                duration.map(|d| if let Ok(d) = d.to_std() {
                     d
                 } else{
                     TokioDuration::from_secs(d.num_seconds() as u64)

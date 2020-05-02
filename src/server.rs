@@ -9,6 +9,7 @@ use crate::api::slack::event::AppMention;
 
 pub async fn run(port: u16, signing_key: String, sender: UnboundedSender<AppMention>) {
     let routes = filters::index()
+        .or(filters::favicon())
         .or(filters::event(State {
             signing_key,
             sender,
@@ -59,6 +60,18 @@ mod filters {
         warp::get().and(warp::path::end()).map(handlers::index)
     }
 
+    pub fn favicon() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        favicon_16().or(favicon_32())
+    }
+
+    fn favicon_16() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        warp::get().and(warp::path!("favicon-16x16.png").map(handlers::favicon_16))
+    }
+
+    fn favicon_32() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        warp::get().and(warp::path!("favicon-32x32.png").map(handlers::favicon_32))
+    }
+
     pub fn event(
         state: State,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
@@ -86,11 +99,15 @@ mod handlers {
     use log::{error, info, trace};
     use tokio::sync::mpsc::UnboundedSender;
     use warp::http::header;
-    use warp::http::StatusCode;
+    use warp::http::{Response, StatusCode};
 
     use crate::api::slack::event::{self, AppMention, Callback, Event};
 
-    const INDEX_HTML: &[u8] = include_bytes!("index.html");
+    const INDEX_HTML: &[u8] = include_bytes!("../assets/index.html");
+
+    const FAVICON_16X16_PNG: &[u8] = include_bytes!("../assets/favicon-16x16.png");
+    const FAVICON_32X32_PNG: &[u8] = include_bytes!("../assets/favicon-32x32.png");
+    const FAVICON_CACHE_CONTROL: &str = "public, max-age=2592000";
 
     #[derive(Debug, Clone)]
     pub struct State {
@@ -100,6 +117,20 @@ mod handlers {
 
     pub fn index() -> impl warp::Reply {
         warp::reply::html(INDEX_HTML)
+    }
+
+    pub fn favicon_16() -> impl warp::Reply {
+        Response::builder()
+            .header(header::CONTENT_TYPE, "image/png")
+            .header(header::CACHE_CONTROL, FAVICON_CACHE_CONTROL)
+            .body(FAVICON_16X16_PNG)
+    }
+
+    pub fn favicon_32() -> impl warp::Reply {
+        Response::builder()
+            .header(header::CONTENT_TYPE, "image/png")
+            .header(header::CACHE_CONTROL, FAVICON_CACHE_CONTROL)
+            .body(FAVICON_32X32_PNG)
     }
 
     pub fn event(

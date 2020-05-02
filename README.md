@@ -4,18 +4,15 @@
 
 A Slack bot to report [codewars](https://codewars.com) statistics, written in Rust 🦀.
 
-This project is in a very early stage. Use at your own risk.
-
 ## Setup
 
 The application currently expects settings to be provided through environment variables provided by
-an `.env` file. The required variables are as follows:\
+an `.env` file. The required variables are as follows:
 
-| Variable      | Description                                                           |
-| ------------- | --------------------------------------------------------------------- |
-| SLACK_TOKEN   | A Slack legacy (yes, legacy 👻) token to authenticate the bot.        |
-| SLACK_CHANNEL | Channel ID where you want this bot to send your team messages.        |
-| RUST_LOG      | Configuration for the logger. Set this to `codewars_bot` to see logs. |
+| Variable    | Description                                      |
+| ----------- | ------------------------------------------------ |
+| SIGNING_KEY | Key to verify the HTTP calls come from Slack     |
+| WEBHOOK_URL | Webhook to send messages to a Slack team channel |
 
 ## Build
 
