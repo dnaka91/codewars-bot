@@ -8,7 +8,7 @@ pub struct Message<'a> {
     pub text: &'a str,
 }
 
-pub async fn send<U: IntoUrl>(url: U, text: &str) -> Result<()> {
+pub async fn send<U: IntoUrl + Send>(url: U, text: &str) -> Result<()> {
     let resp = reqwest::Client::new()
         .post(url)
         .json(&Message { text })

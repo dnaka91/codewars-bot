@@ -8,7 +8,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::Duration as TokioDuration;
 
 #[async_trait]
-pub trait Task {
+pub trait Task: Send + Sync {
     fn name() -> &'static str;
 
     async fn run(&self);
@@ -72,8 +72,8 @@ where
     }
 }
 
-pub trait Scheduler {
-    type Input;
+pub trait Scheduler: Send {
+    type Input: Copy + Send;
 
     fn next(input: Self::Input) -> Option<Duration>;
 }

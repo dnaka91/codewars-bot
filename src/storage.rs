@@ -48,7 +48,7 @@ impl Default for Schedule {
 impl Repository {
     /// Load all settings from the given file location. If the file doesn't exist, a new empty
     /// `Repository` with defaults is created instead.
-    pub async fn load(path: impl AsRef<Path>) -> Result<Self> {
+    pub async fn load(path: impl AsRef<Path> + Send + Sync) -> Result<Self> {
         let mut repo = if path.as_ref().exists() {
             let settings = fs::read(&path).await?;
             toml::from_slice(&settings)?

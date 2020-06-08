@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::all, clippy::pedantic)]
 #![warn(clippy::nursery)]
-#![allow(clippy::wildcard_imports)]
+#![allow(clippy::used_underscore_binding, clippy::wildcard_imports)]
 
 use std::fmt::Write;
 use std::sync::Arc;
