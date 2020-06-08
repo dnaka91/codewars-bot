@@ -15,38 +15,40 @@ pub trait Task: Send + Sync {
 }
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-pub async fn run<S, T>(mut rx: UnboundedReceiver<S::Input>, task: T)
+pub async fn run<S, T>(mut rx: UnboundedReceiver<Option<S::Input>>, task: T)
 where
     S: Scheduler,
     T: Task,
 {
-    let mut duration = None;
+    let mut schedule = None;
     let (delayed, mut handle) = future::abortable(future::pending());
     let mut delayed = delayed.boxed().shared();
 
     loop {
-        duration = tokio::select! {
+        schedule = tokio::select! {
             _ = delayed.clone() => {
                 trace!("Executing {} task", T::name());
                 task.run().await;
 
-                duration
+                schedule
             },
-            Some(schedule) = rx.recv() => {
+            Some(Some(s)) = rx.recv() => {
                 trace!("Got new {} schedule", T::name());
                 handle.abort();
 
-                let duration = S::next(schedule);
-
-                duration.map(|d| if let Ok(d) = d.to_std() {
-                    d
-                } else{
-                    TokioDuration::from_secs(d.num_seconds() as u64)
-                })
+                schedule = Some(s);
+                schedule
             }
         };
 
-        if let Some(duration) = duration {
+        if let Some(schedule) = schedule {
+            let duration = S::next(schedule);
+            let duration = if let Ok(d) = duration.to_std() {
+                d
+            } else {
+                TokioDuration::from_secs(duration.num_seconds() as u64)
+            };
+
             let (d, h) = future::abortable(tokio::time::delay_for(duration));
             delayed = d.boxed().shared();
             handle = h;
@@ -75,7 +77,7 @@ where
 pub trait Scheduler: Send {
     type Input: Copy + Send;
 
-    fn next(input: Self::Input) -> Option<Duration>;
+    fn next(input: Self::Input) -> Duration;
 }
 
 pub struct WeeklyScheduler;
@@ -83,7 +85,7 @@ pub struct WeeklyScheduler;
 impl Scheduler for WeeklyScheduler {
     type Input = (Weekday, NaiveTime);
 
-    fn next((weekday, time): Self::Input) -> Option<Duration> {
+    fn next((weekday, time): Self::Input) -> Duration {
         let now = Local::now().naive_local();
         let mut next = now.date();
 
@@ -95,17 +97,17 @@ impl Scheduler for WeeklyScheduler {
             }
         }
 
-        Some(next.and_time(time) - now)
+        next.and_time(time) - now
     }
 }
 
 pub struct HourlyScheduler;
 
 impl Scheduler for HourlyScheduler {
-    type Input = Option<u8>;
+    type Input = u8;
 
-    fn next(duration: Self::Input) -> Option<Duration> {
-        duration.map(|d| Duration::hours(i64::from(d)))
+    fn next(duration: Self::Input) -> Duration {
+        Duration::hours(i64::from(duration))
     }
 }
 
@@ -124,8 +126,8 @@ mod tests {
     impl Scheduler for FakeScheduler {
         type Input = ();
 
-        fn next(_: Self::Input) -> Option<Duration> {
-            Some(Duration::milliseconds(50))
+        fn next(_: Self::Input) -> Duration {
+            Duration::milliseconds(50)
         }
     }
 
@@ -157,7 +159,7 @@ mod tests {
 
         tokio::spawn(run::<FakeScheduler, _>(rx, FakeTask));
 
-        tx.send(()).unwrap();
+        tx.send(Some(())).unwrap();
 
         tokio::time::delay_for(TokioDuration::from_millis(110)).await;
     }

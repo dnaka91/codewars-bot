@@ -167,7 +167,7 @@ async fn run_server(port: u16, signing_key: String, webhook_url: String) -> Resu
         let s = l.schedule();
         (s.weekday, s.time)
     };
-    s_tx.send(msg)?;
+    s_tx.send(Some(msg))?;
 
     let (n_tx, n_rx) = mpsc::unbounded_channel();
     tokio::spawn(scheduling::run::<scheduling::HourlyScheduler, _>(
@@ -201,7 +201,7 @@ async fn handle_events(
     webhook_url: String,
     settings: Arc<Mutex<Repository>>,
     mut rx: UnboundedReceiver<AppMention>,
-    s_tx: UnboundedSender<(Weekday, NaiveTime)>,
+    s_tx: UnboundedSender<Option<(Weekday, NaiveTime)>>,
     n_tx: UnboundedSender<Option<u8>>,
 ) {
     while let Some(AppMention { user, text, .. }) = rx.recv().await {
@@ -349,7 +349,7 @@ Show this help.",
 
 async fn schedule(
     settings: &Arc<Mutex<Repository>>,
-    s_tx: &UnboundedSender<(Weekday, NaiveTime)>,
+    s_tx: &UnboundedSender<Option<(Weekday, NaiveTime)>>,
     weekday: Weekday,
     time: NaiveTime,
 ) -> Result<String> {
@@ -360,7 +360,7 @@ async fn schedule(
             .set_schedule(storage::Schedule { weekday, time })
             .await?
         {
-            s_tx.send((weekday, time)).ok();
+            s_tx.send(Some((weekday, time))).ok();
             format!(
                 "Weekly schedule updated to send stats on `{}s` at `{}`",
                 match weekday {
