@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/root/.cargo/git \
     --mount=type=cache,target=/volume/target \
     cargo install --path .
 
-FROM alpine:3.11
+FROM alpine:3.12
 
 WORKDIR /data
 
