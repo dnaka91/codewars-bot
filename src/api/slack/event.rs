@@ -1,4 +1,4 @@
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, Mac, NewMac};
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::Sha256;
@@ -26,10 +26,10 @@ pub fn verify_signature(key: &[u8], signature: &str, timestamp: &str, body: &[u8
 
     let mut mac = Hmac::<Sha256>::new_varkey(key).map_err(|_| Error::HmacKeyLength)?;
 
-    mac.input(b"v0:");
-    mac.input(timestamp.as_bytes());
-    mac.input(b":");
-    mac.input(body);
+    mac.update(b"v0:");
+    mac.update(timestamp.as_bytes());
+    mac.update(b":");
+    mac.update(body);
 
     mac.verify(&sig_data).map_err(|_| Error::MacVerify)?;
 
