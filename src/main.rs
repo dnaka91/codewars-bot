@@ -1,4 +1,45 @@
-//! # Codewars Bot (for Slack)
+//! # Codewars Bot for Slack
+//!
+//! This service is a bot for Slack that connects to [Codewars](https://codewars.com) to show
+//! statistic about a user selected list of users.
+//!
+//! It can show statistics at any time, but also features a fixed schedule to report the latest
+//! stats without user intervention. Lastly it can give a notification whenever a new challenge was
+//! completed by one of the tracked users.
+//!
+//! ## Slack commands
+//
+//! The service currently knows all the following commands that can be triggered by sending a Slack
+//! message with `@<botname> <command>`:
+//!
+//! ### `add <user>`
+//!
+//! Add a Codewars user to the statistics report.
+//!
+//! ### `remove <user>`
+//!
+//! Remove a Codewars user from the statistics again.
+//!
+//! ### `stats [since <date>]`
+//!
+//! Show the current statistics of all tracked users.
+//! - The format of `<date>` is `YYYY/MM/DD`, for example `2020/02/12` or `2020/1/2`.
+//! - The date is optional.
+//!
+//! ### `schedule on <weekday> [at <time>]`
+//!
+//! Set a weekly schedule to send the latest stats.
+//! - The format of `<weekday>` is the weekday name in short or long form, for example `wed` or `Friday`.
+//! - The format of `<time>` is `HH:MM`, for example `12:25` or `01:00`.
+//! - The time is optional and defaults to `10:00`.
+//!
+//! ### `notify <on|off>`
+//!
+//! Send notifications whenever new challenges are completed.
+//!
+//! ### `help`
+//!
+//! Show information about all available commands.
 
 #![forbid(unsafe_code)]
 #![deny(clippy::all, clippy::pedantic)]
