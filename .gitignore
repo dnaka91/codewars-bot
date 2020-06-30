@@ -1,4 +1,6 @@
 /target
+
 .env
 codewars-bot.log
+codewars-bot.toml
 settings.toml

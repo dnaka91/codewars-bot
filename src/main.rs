@@ -13,8 +13,6 @@ use async_trait::async_trait;
 use chrono::prelude::*;
 use chrono::Duration;
 use log::error;
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
 
@@ -22,6 +20,7 @@ mod api;
 mod commands;
 mod scheduling;
 mod server;
+mod settings;
 mod storage;
 
 use crate::api::slack::event::AppMention;
@@ -31,25 +30,11 @@ use crate::storage::Repository;
 
 const SETTINGS_FILE: &str = "settings.toml";
 
-#[derive(Debug, StructOpt)]
-#[structopt(about, author, setting = AppSettings::ColoredHelp)]
-struct Opt {
-    /// Port to listen for connections.
-    #[structopt(long, env, default_value = "8080")]
-    port: u16,
-    /// Signing key to verify HTTP calls come from Slack.
-    #[structopt(long, env, hide_env_values = true)]
-    signing_key: String,
-    /// Webhook URL to post messages to a Slack channel.
-    #[structopt(long, env, hide_env_values = true)]
-    webhook_url: String,
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
 
-    let opt: Opt = Opt::from_args();
+    let opt = settings::load()?;
 
     setup_logger()?;
 
