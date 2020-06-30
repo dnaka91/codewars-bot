@@ -19,6 +19,7 @@ pub async fn run(port: u16, signing_key: String, sender: UnboundedSender<AppMent
             signing_key,
             sender,
         }))
+        .map(filters::with_sec_headers)
         .with(warp::log("server"));
 
     let (addr, server) =
@@ -102,6 +103,33 @@ mod filters {
     /// Attach the [`State`] to an existing filter.
     fn with_state(state: State) -> impl Filter<Extract = (State,), Error = Infallible> + Clone {
         warp::any().map(move || state.clone())
+    }
+
+    /// List of security headers that should be applied to all responses.
+    const SEC_HEADERS: &[(&str, &str)] = &[
+        ("referrer-policy", "same-origin"),
+        (
+            "strict-transport-security",
+            "max-age=63072000; includeSubDomains; preload",
+        ),
+        ("x-content-type-options", "nosniff"),
+        ("x-frame-options", "DENY"),
+        ("x-xss-protection", "1; mode=block"),
+    ];
+
+    /// Wrap the a reply and add additional security headers to it, overwriting any existing header
+    /// values if they already existed.
+    pub fn with_sec_headers(reply: impl warp::Reply) -> impl warp::Reply {
+        use warp::http::HeaderValue;
+
+        let mut res = reply.into_response();
+        let headers = res.headers_mut();
+
+        for (k, v) in SEC_HEADERS.iter() {
+            headers.insert(*k, HeaderValue::from_static(v));
+        }
+
+        res
     }
 }
 
