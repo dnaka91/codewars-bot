@@ -169,18 +169,15 @@ mod handlers {
         }
     }
 
-    pub fn error(resp: Result<Option<String>>) -> impl warp::Reply {
+    pub fn error<T>(resp: Result<Option<T>>) -> impl warp::Reply
+    where
+        T: Default + warp::Reply,
+    {
         let (status, content) = match resp {
-            Ok(opt) => (
-                StatusCode::OK,
-                match opt {
-                    Some(value) => value,
-                    None => String::new(),
-                },
-            ),
+            Ok(opt) => (StatusCode::OK, opt.unwrap_or_default()),
             Err(e) => {
                 error!("Error during event processing: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, String::new())
+                (StatusCode::INTERNAL_SERVER_ERROR, Default::default())
             }
         };
 
