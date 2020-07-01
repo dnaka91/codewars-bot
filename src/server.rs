@@ -2,8 +2,6 @@
 //! landing page to introduce features of the service.
 
 use log::{info, warn};
-use tokio::signal;
-use tokio::stream::StreamExt;
 use tokio::sync::mpsc::UnboundedSender;
 use warp::Filter;
 
@@ -31,26 +29,8 @@ pub async fn run(port: u16, signing_key: String, sender: UnboundedSender<AppMent
 
 /// The signal to wait for that triggers a shutdown of the server.
 async fn shutdown_signal() {
-    #[cfg(unix)]
-    let mut signals = {
-        use tokio::signal::unix::{signal, SignalKind};
-        if let Ok(s) = signal(SignalKind::terminate()) {
-            s
-        } else {
-            warn!("failed to install terminate signal handler");
-            return;
-        }
-    };
-    #[cfg(not(unix))]
-    let mut signals = tokio::stream::pending::<()>();
-
-    tokio::select! {
-        _ = signals.next() => (),
-        s = signal::ctrl_c() => {
-            if s.is_err() {
-                warn!("failed to install CTRL+C signal handler");
-            }
-        }
+    if tokio::signal::ctrl_c().await.is_err() {
+        warn!("failed to install CTRL+C signal handler");
     }
 
     info!("shutting down");

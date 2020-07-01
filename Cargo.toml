@@ -43,7 +43,7 @@ features = ["gzip", "json", "rustls-tls"]
 
 [dependencies.tokio]
 version = "0.2.21"
-features = ["fs", "macros", "rt-threaded", "signal", "stream", "sync"]
+features = ["fs", "macros", "rt-threaded", "signal", "sync"]
 
 [dev-dependencies]
 env_logger = { version = "0.7.1", default-features = false }

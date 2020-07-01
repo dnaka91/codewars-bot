@@ -19,5 +19,6 @@ RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /root/.cargo/bin/codewars-bot /app/
 
 EXPOSE 8080
+STOPSIGNAL SIGINT
 
 ENTRYPOINT ["/app/codewars-bot"]
