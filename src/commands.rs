@@ -1,23 +1,34 @@
+//! Command parser to turn text messages into comamnds for the service.
+
 use anyhow::{anyhow, bail, Result};
 use chrono::{NaiveDate, NaiveTime, Weekday};
 use pest::Parser;
 use pest_derive::Parser;
 
+/// The actual parser that uses PEST grammar to parse text messages.
 #[derive(Parser)]
 #[grammar = "commands.pest"]
 struct CommandParser;
 
+/// All possible supported commands that are understood by the service.
 #[derive(Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum Command {
+    /// Add a user to the tracking list.
     AddUser(String),
+    /// Stop tracking a user.
     RemoveUser(String),
+    /// Get and report Codewars statistics with optional start date.
     Stats(Option<NaiveDate>),
+    /// Show a help message.
     Help,
+    /// Update the schedule for weekly reports.
     Schedule(Weekday, NaiveTime),
+    /// Turn automatic notifications of new challenges on or off.
     Notify(bool),
 }
 
+/// Parse a text message into one of the possible commands that the service understands.
 pub fn parse(cmd: &str) -> Result<Command> {
     let command = CommandParser::parse(Rule::command, cmd)?
         .next()
@@ -136,10 +147,15 @@ mod tests {
         );
         assert_eq!(
             Some(Command::Schedule(
-                Weekday::Wed,
+                Weekday::Tue,
                 NaiveTime::from_hms(10, 0, 0)
             )),
-            parse("schedule on Wednesday").ok()
+            parse("schedule on Tue").ok()
         );
+    }
+
+    #[test]
+    fn parse_notify() {
+        assert_eq!(Some(Command::Notify(true)), parse("notify on").ok())
     }
 }

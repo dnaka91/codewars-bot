@@ -1,3 +1,6 @@
+//! Global server settings loaded at start up and used to configure the service and provide required
+//! information for its functionality.
+
 use anyhow::Result;
 use config::{Config, File};
 use serde::Deserialize;

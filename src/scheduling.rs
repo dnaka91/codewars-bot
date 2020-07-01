@@ -1,3 +1,5 @@
+//! Schedulers to execute tasks on a fixed basis with the option to reschedule any time.
+
 use async_trait::async_trait;
 use chrono::prelude::*;
 use chrono::Duration;
@@ -7,13 +9,20 @@ use log::{debug, trace};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::Duration as TokioDuration;
 
+/// A task that is to be executed. It is used together with a [`Scheduler`] in the [`run`] function
+/// to run any task on a fixed schedule.
 #[async_trait]
 pub trait Task: Send + Sync {
+    /// Short title for the task to identify it in logs.
     fn name() -> &'static str;
 
+    /// The logic that a task should execute.
     async fn run(&self);
 }
 
+/// Create an endless schedule for a given task. The task is executed regularly based on the rules
+/// of a [`Scheduler`]. The schedule can be updated any time by sending new inputs through the
+/// provided channel.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub async fn run<S, T>(mut rx: UnboundedReceiver<Option<S::Input>>, task: T)
 where
@@ -74,12 +83,16 @@ where
     }
 }
 
+/// A scheduler that calculates the duration to wait until next occurrence of an event. It is
+/// generic over the input data which allows to create schedules out of any kind of data.
 pub trait Scheduler: Send {
     type Input: Copy + Send;
 
+    /// Calculate the wait duration until the next event should be triggered.
     fn next(input: Self::Input) -> Duration;
 }
 
+/// A scheduler that schedules events on a fixed weekday and time.
 pub struct WeeklyScheduler;
 
 impl Scheduler for WeeklyScheduler {
@@ -101,13 +114,14 @@ impl Scheduler for WeeklyScheduler {
     }
 }
 
+/// A scheduler that schedules events on a hour basis.
 pub struct HourlyScheduler;
 
 impl Scheduler for HourlyScheduler {
     type Input = u8;
 
     fn next(duration: Self::Input) -> Duration {
-        Duration::hours(i64::from(duration))
+        Duration::hours(duration.into())
     }
 }
 

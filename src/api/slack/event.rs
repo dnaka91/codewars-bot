@@ -1,3 +1,6 @@
+//! Events that are sent from Slack to a server endpoint to notify about various changes in a team
+//! chat.
+
 use hmac::{Hmac, Mac, NewMac};
 use serde::Deserialize;
 use serde_json::Value;
@@ -5,18 +8,29 @@ use sha2::Sha256;
 
 use super::{Error, Result};
 
+
+/// An URL verification request that contains a challenge to be send back to Slack in a HTTP
+/// response.
 #[derive(Debug, Deserialize)]
 pub struct UrlVerification {
+    /// Message to send back.
     pub challenge: String,
 }
 
+/// An app mention event that happens when a user directly write a message to an app.
 #[derive(Debug, Deserialize)]
 pub struct AppMention {
+    /// ID of the user who sent the message.
     pub user: String,
+    /// Message content.
     pub text: String,
+    /// The channel where this message was sent.
     pub channel: String,
 }
 
+/// Verify the signature of a HTTP request to make sure it really came from Slack. The system sends
+/// a signature and timestamp with every request. The signature is a HMAC over the timestamp and
+/// message payload with an apps private key.
 pub fn verify_signature(key: &[u8], signature: &str, timestamp: &str, body: &[u8]) -> Result<()> {
     if !signature.starts_with("v0=") {
         return Err(Error::UnsupportedSignatureVersion);
@@ -36,15 +50,23 @@ pub fn verify_signature(key: &[u8], signature: &str, timestamp: &str, body: &[u8
     Ok(())
 }
 
+/// Callback type for URL verification.
 const CALLBACK_URL_VERIFICATION: &str = "url_verification";
+/// Callback type for actual event messages.
 const CALLBACK_EVENT_CALLBACK: &str = "event_callback";
 
+/// Different kinds of callbacks that are sent by Slack.
 pub enum Callback {
+    /// Fallback for any callback types that are not supported.
     Unknown(String),
+    /// URL verification that is used by Slack to make sure the service is running and can
+    /// authenticate as the app registered in the platform.
     UrlVerification(UrlVerification),
+    /// Callback for any kind of events that Slack might notify about.
     Event(Value),
 }
 
+/// Parse a JSON content into a Slack callback.
 pub fn parse_callback(mut event: Value) -> Result<Callback> {
     Ok(
         match event
@@ -69,13 +91,18 @@ pub fn parse_callback(mut event: Value) -> Result<Callback> {
     )
 }
 
+/// Event type for any mentions of the app.
 const EVENT_APP_MENTION: &str = "app_mention";
 
+/// Different events that Slack can notify about.
 pub enum Event {
+    /// Fallback for any unsupported events.
     Unknown(String),
+    /// The app was mentioned by a user directly like `@bot hello`.
     AppMention(AppMention),
 }
 
+/// Parse from raw JSON content into a Slack event.
 #[allow(clippy::module_name_repetitions)]
 pub fn parse_event(mut event: Value) -> Result<Event> {
     Ok(

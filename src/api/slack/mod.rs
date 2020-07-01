@@ -1,18 +1,20 @@
+//! Slack API for parsing events received from the platform and webhooks to send messages.
+
 use thiserror::Error;
 
 pub mod event;
 pub mod webhook;
 
+/// Shorthand for results in this module.
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// A list of errors that can happen while interacting with the API.
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Error during HTTP handling")]
     Http(#[from] reqwest::Error),
     #[error("URL handling failed")]
     UrlParse(#[from] url::ParseError),
-    #[error("Error reading environment variable")]
-    EnvVar(#[from] std::env::VarError),
     #[error("Error during JSON (de-)serialization")]
     Json(#[from] serde_json::Error),
     #[error("Conversion from hex string failed")]
