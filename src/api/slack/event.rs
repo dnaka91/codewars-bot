@@ -8,7 +8,6 @@ use sha2::Sha256;
 
 use super::{Error, Result};
 
-
 /// An URL verification request that contains a challenge to be send back to Slack in a HTTP
 /// response.
 #[derive(Debug, Deserialize)]

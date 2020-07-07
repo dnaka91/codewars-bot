@@ -11,8 +11,7 @@ description = "A Slack bot to report Codewars statistics"
 anyhow = "1.0.31"
 async-trait = "0.1.36"
 bytes = "0.5.5"
-chrono = { version = "0.4.11", features = ["serde"] }
-console = { version = "0.11.3", default-features = false }
+chrono = { version = "0.4.13", features = ["serde"] }
 dotenv = "0.15.0"
 fern = "0.6.0"
 futures = "0.3.5"
@@ -30,6 +29,7 @@ thiserror = "1.0.20"
 toml = "0.5.6"
 url = { version = "2.1.1", features = ["serde"] }
 warp = { version = "0.2.3", default-features = false }
+yansi = "0.5.0"
 
 [dependencies.config]
 version = "0.10.1"

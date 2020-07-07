@@ -85,14 +85,15 @@ async fn main() -> Result<()> {
 }
 
 fn setup_logger() -> Result<()> {
-    let colored = |l: log::Level| -> console::StyledObject<log::Level> {
-        let styled = console::style(l);
+    use yansi::Paint;
+
+    let colored = |l: log::Level| -> Paint<log::Level> {
         match l {
-            log::Level::Trace => styled.magenta(),
-            log::Level::Debug => styled.blue(),
-            log::Level::Info => styled.green(),
-            log::Level::Warn => styled.yellow(),
-            log::Level::Error => styled.red(),
+            log::Level::Trace => Paint::magenta(l),
+            log::Level::Debug => Paint::blue(l),
+            log::Level::Info => Paint::green(l),
+            log::Level::Warn => Paint::yellow(l),
+            log::Level::Error => Paint::red(l),
         }
     };
 
@@ -118,7 +119,7 @@ fn setup_logger() -> Result<()> {
                         "{} {:5} {} > {}",
                         chrono::Local::now().format("%H:%M:%S"),
                         colored(record.level()),
-                        console::style(record.target()).bold(),
+                        Paint::new(record.target()).bold(),
                         message
                     ))
                 })
