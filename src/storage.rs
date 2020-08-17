@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use chrono::{NaiveTime, Weekday};
+use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
@@ -23,6 +23,8 @@ pub struct Repository {
     users: BTreeSet<String>,
     /// Whether to notify about any Codewars events related to the watched `users`.
     notify: bool,
+    /// Last time the schedule was successfully sent.
+    last_run: Option<DateTime<Utc>>,
     /// The schedule for weekly statistics messages.
     schedule: Schedule,
 }
@@ -126,6 +128,22 @@ impl Repository {
             Ok(false)
         } else {
             self.notify = notify;
+            self.save().await?;
+            Ok(true)
+        }
+    }
+
+    /// Get the time of the last scheduled stats run.
+    pub const fn last_run(&self) -> Option<DateTime<Utc>> {
+        self.last_run
+    }
+
+    /// Set the last run of scheduled stats.
+    pub async fn set_last_run(&mut self, last_run: DateTime<Utc>) -> Result<bool> {
+        if self.last_run == Some(last_run) {
+            Ok(false)
+        } else {
+            self.last_run = Some(last_run);
             self.save().await?;
             Ok(true)
         }

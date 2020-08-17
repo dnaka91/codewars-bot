@@ -144,8 +144,16 @@ impl<'a> scheduling::Task for StatsTask {
     }
 
     async fn run(&self) {
-        match stats(&self.repo, None).await {
-            Ok(msg) => webhook_send(&self.webhook_url, &msg).await,
+        let start_time = Utc::now();
+        let since = self.repo.lock().await.last_run().map(|dt| dt.naive_local());
+
+        match stats(&self.repo, since).await {
+            Ok(msg) => {
+                webhook_send(&self.webhook_url, &msg).await;
+                if let Err(e) = self.repo.lock().await.set_last_run(start_time).await {
+                    error!("Error saving last run time: {}", e);
+                }
+            }
             Err(e) => error!("Error collecting scheduled stats: {}", e),
         }
     }

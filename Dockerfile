@@ -14,8 +14,6 @@ FROM alpine:3.12
 
 WORKDIR /data
 
-RUN apk add --no-cache ca-certificates tzdata
-
 COPY --from=builder /root/.cargo/bin/codewars-bot /app/
 
 EXPOSE 8080
