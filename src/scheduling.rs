@@ -102,7 +102,7 @@ impl Scheduler for WeeklyScheduler {
         let now = Local::now().naive_local();
         let mut next = now.date();
 
-        if next.weekday() == weekday {
+        if now.weekday() == weekday && now.time() >= time {
             next += Duration::weeks(1);
         } else {
             while next.weekday() != weekday {
