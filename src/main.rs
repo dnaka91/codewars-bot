@@ -320,14 +320,12 @@ async fn stats(settings: &Arc<Mutex<Repository>>, since: Option<NaiveDateTime>) 
             user, challenge_resp.total_items
         )?;
 
-        let (filter, n): (ChallengeFilter, usize) = if let Some(date) = since {
+        let (filter, n): (ChallengeFilter, usize) = since.map_or((Box::new(|_| true), 3), |date| {
             (
                 Box::new(move |c| c.completed_at.naive_local() >= date),
                 usize::max_value(),
             )
-        } else {
-            (Box::new(|_| true), 3)
-        };
+        });
 
         for challenge in challenges.into_iter().filter(filter).take(n) {
             if let Some(name) = challenge.name {
