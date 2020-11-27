@@ -22,9 +22,9 @@ pub enum Error {
     #[error("Failed sending a request to get {0}: {1}")]
     UnsuccessfulRequest(&'static str, String),
     #[error("Invalid HMAC key length")]
-    HmacKeyLength,
+    HmacKeyLength(#[from] hmac::crypto_mac::InvalidKeyLength),
     #[error("MAC verification error")]
-    MacVerify,
+    MacVerify(#[from] hmac::crypto_mac::MacError),
     #[error("Missing `{0}` property in JSON object")]
     JsonMissingProperty(&'static str),
     #[error("JSON value `{0}` is not a {1}")]

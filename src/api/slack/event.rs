@@ -37,14 +37,14 @@ pub fn verify_signature(key: &[u8], signature: &str, timestamp: &str, body: &[u8
 
     let sig_data = hex::decode(&signature[3..])?;
 
-    let mut mac = Hmac::<Sha256>::new_varkey(key).map_err(|_| Error::HmacKeyLength)?;
+    let mut mac = Hmac::<Sha256>::new_varkey(key)?;
 
     mac.update(b"v0:");
     mac.update(timestamp.as_bytes());
     mac.update(b":");
     mac.update(body);
 
-    mac.verify(&sig_data).map_err(|_| Error::MacVerify)?;
+    mac.verify(&sig_data)?;
 
     Ok(())
 }
@@ -70,9 +70,9 @@ pub fn parse_callback(mut event: Value) -> Result<Callback> {
     Ok(
         match event
             .get("type")
-            .ok_or_else(|| Error::JsonMissingProperty("type"))?
+            .ok_or(Error::JsonMissingProperty("type"))?
             .as_str()
-            .ok_or_else(|| Error::JsonWrongType("type", "string"))?
+            .ok_or(Error::JsonWrongType("type", "string"))?
         {
             CALLBACK_URL_VERIFICATION => {
                 let event: UrlVerification = serde_json::from_value(event)?;
@@ -81,7 +81,7 @@ pub fn parse_callback(mut event: Value) -> Result<Callback> {
             CALLBACK_EVENT_CALLBACK => {
                 let event = event
                     .get_mut("event")
-                    .ok_or_else(|| Error::JsonMissingProperty("event"))?;
+                    .ok_or(Error::JsonMissingProperty("event"))?;
 
                 Callback::Event(event.take())
             }
@@ -107,11 +107,11 @@ pub fn parse_event(mut event: Value) -> Result<Event> {
     Ok(
         match event
             .as_object()
-            .ok_or_else(|| Error::JsonWrongType("event", "object"))?
+            .ok_or(Error::JsonWrongType("event", "object"))?
             .get("type")
-            .ok_or_else(|| Error::JsonMissingProperty("type"))?
+            .ok_or(Error::JsonMissingProperty("type"))?
             .as_str()
-            .ok_or_else(|| Error::JsonWrongType("type", "string"))?
+            .ok_or(Error::JsonWrongType("type", "string"))?
         {
             EVENT_APP_MENTION => {
                 let event: AppMention = serde_json::from_value(event.take())?;

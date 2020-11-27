@@ -1,9 +1,33 @@
 //! Command parser to turn text messages into comamnds for the service.
 
-use anyhow::{anyhow, bail, Result};
 use chrono::{NaiveDate, NaiveTime, Weekday};
 use pest::Parser;
 use pest_derive::Parser;
+use thiserror::Error;
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Command missing")]
+    CommandMissing,
+    #[error("Username missing")]
+    UsernameMissing,
+    #[error("Weekday missing")]
+    WeekdayMissing,
+    #[error("Boolean missing")]
+    BooleanMissing,
+    #[error("Failed parsing date or time")]
+    InvalidDateTime(#[from] chrono::ParseError),
+    #[error("Invalid weekday")]
+    InvalidWeekday(chrono::ParseWeekdayError),
+    #[error("Invalid boolean")]
+    InvalidBoolean,
+    #[error("Unknown command")]
+    UnknownCommand,
+    #[error("Invalid command input")]
+    InvalidInput(#[from] pest::error::Error<Rule>),
+}
 
 /// The actual parser that uses PEST grammar to parse text messages.
 #[derive(Parser)]
@@ -32,18 +56,15 @@ pub enum Command {
 pub fn parse(cmd: &str) -> Result<Command> {
     let command = CommandParser::parse(Rule::command, cmd)?
         .next()
-        .ok_or_else(|| anyhow!("command missing"))?;
-    let command = command
-        .into_inner()
-        .next()
-        .ok_or_else(|| anyhow!("command missing"))?;
+        .ok_or(Error::CommandMissing)?;
+    let command = command.into_inner().next().ok_or(Error::CommandMissing)?;
 
     Ok(match command.as_rule() {
         Rule::add => Command::AddUser(
             command
                 .into_inner()
                 .next()
-                .ok_or_else(|| anyhow!("username missing"))?
+                .ok_or(Error::UsernameMissing)?
                 .as_str()
                 .to_owned(),
         ),
@@ -51,7 +72,7 @@ pub fn parse(cmd: &str) -> Result<Command> {
             command
                 .into_inner()
                 .next()
-                .ok_or_else(|| anyhow!("username missing"))?
+                .ok_or(Error::UsernameMissing)?
                 .as_str()
                 .to_owned(),
         ),
@@ -67,10 +88,10 @@ pub fn parse(cmd: &str) -> Result<Command> {
             let mut args = command.into_inner();
             Command::Schedule(
                 args.next()
-                    .ok_or_else(|| anyhow!("weekday missing"))?
+                    .ok_or(Error::WeekdayMissing)?
                     .as_str()
                     .parse()
-                    .map_err(|_| anyhow!("invalid weekday"))?,
+                    .map_err(Error::InvalidWeekday)?,
                 args.next().map_or_else(
                     || Ok(NaiveTime::from_hms(10, 0, 0)),
                     |t| NaiveTime::parse_from_str(t.as_str(), "%R"),
@@ -81,16 +102,16 @@ pub fn parse(cmd: &str) -> Result<Command> {
             let boolean = command
                 .into_inner()
                 .next()
-                .ok_or_else(|| anyhow!("boolean missing"))?
+                .ok_or(Error::BooleanMissing)?
                 .as_str();
             let on_off = match boolean {
                 "on" => true,
                 "off" => false,
-                _ => bail!("invalid boolean"),
+                _ => return Err(Error::InvalidBoolean),
             };
             Command::Notify(on_off)
         }
-        _ => bail!("unknown command"),
+        _ => return Err(Error::UnknownCommand),
     })
 }
 
