@@ -58,7 +58,7 @@ where
                 TokioDuration::from_secs(duration.num_seconds() as u64)
             };
 
-            let (d, h) = future::abortable(tokio::time::delay_for(duration));
+            let (d, h) = future::abortable(tokio::time::sleep(duration));
             delayed = d.boxed().shared();
             handle = h;
 
@@ -175,6 +175,6 @@ mod tests {
 
         tx.send(Some(())).unwrap();
 
-        tokio::time::delay_for(TokioDuration::from_millis(110)).await;
+        tokio::time::sleep(TokioDuration::from_millis(110)).await;
     }
 }

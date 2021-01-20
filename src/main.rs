@@ -70,7 +70,7 @@ use crate::storage::Repository;
 
 const SETTINGS_FILE: &str = "settings.toml";
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
 
