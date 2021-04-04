@@ -1,5 +1,7 @@
 //! Command parser to turn text messages into comamnds for the service.
 
+#![allow(clippy::upper_case_acronyms)]
+
 use chrono::{NaiveDate, NaiveTime, Weekday};
 use pest::Parser;
 use pest_derive::Parser;
