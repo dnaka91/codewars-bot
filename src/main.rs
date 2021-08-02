@@ -106,7 +106,7 @@ fn setup_logger() -> Result<()> {
                         record.level(),
                         record.target(),
                         message
-                    ))
+                    ));
                 })
                 .level(log::LevelFilter::Info)
                 .chain(fern::log_file("codewars-bot.log")?),
@@ -120,7 +120,7 @@ fn setup_logger() -> Result<()> {
                         colored(record.level()),
                         Paint::new(record.target()).bold(),
                         message
-                    ))
+                    ));
                 })
                 .level(log::LevelFilter::Info)
                 .level_for("codewars_bot", log::LevelFilter::Trace)
@@ -255,7 +255,7 @@ async fn handle_events(
                 Command::AddUser(username) => add_user(&settings, username).await,
                 Command::RemoveUser(username) => remove_user(&settings, username).await,
                 Command::Stats(since) => stats(&settings, since.map(|d| d.and_hms(0, 0, 0))).await,
-                Command::Help => help().await,
+                Command::Help => Ok(help()),
                 Command::Schedule(weekday, time) => schedule(&settings, &s_tx, weekday, time).await,
                 Command::Notify(on_off) => notify(&settings, &n_tx, on_off).await,
             },
@@ -273,7 +273,7 @@ async fn handle_events(
                         user
                     ),
                 )
-                .await
+                .await;
             }
         }
     }
@@ -346,8 +346,8 @@ async fn stats(settings: &Arc<Mutex<Repository>>, since: Option<NaiveDateTime>) 
     Ok(response)
 }
 
-async fn help() -> Result<String> {
-    Ok(String::from(
+fn help() -> String {
+    String::from(
         "\
 Hello there, I'm a Codewars bot. You can use me by mentioning me, followed by a command.
 For example `@codewarsbot stats`.
@@ -376,7 +376,7 @@ Send notifications whenever new challenges are completed.
 
 ```help```
 Show this help.",
-    ))
+    )
 }
 
 async fn schedule(

@@ -179,6 +179,6 @@ mod tests {
 
     #[test]
     fn parse_notify() {
-        assert_eq!(Some(Command::Notify(true)), parse("notify on").ok())
+        assert_eq!(Some(Command::Notify(true)), parse("notify on").ok());
     }
 }

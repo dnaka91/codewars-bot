@@ -37,7 +37,7 @@ pub fn verify_signature(key: &[u8], signature: &str, timestamp: &str, body: &[u8
 
     let sig_data = hex::decode(&signature[3..])?;
 
-    let mut mac = Hmac::<Sha256>::new_varkey(key)?;
+    let mut mac = Hmac::<Sha256>::new_from_slice(key)?;
 
     mac.update(b"v0:");
     mac.update(timestamp.as_bytes());

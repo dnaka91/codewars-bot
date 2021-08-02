@@ -78,7 +78,7 @@ where
             delayed = d.boxed().shared();
             handle = h;
 
-            debug!("Schedule for {} disabled", T::name())
+            debug!("Schedule for {} disabled", T::name());
         }
     }
 }
@@ -154,7 +154,7 @@ mod tests {
         }
 
         async fn run(&self) {
-            debug!("fake task")
+            debug!("fake task");
         }
     }
 

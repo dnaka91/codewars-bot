@@ -24,7 +24,7 @@ pub async fn run(port: u16, signing_key: String, sender: UnboundedSender<AppMent
         warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], port), shutdown_signal());
 
     info!("listening on {}", addr);
-    server.await
+    server.await;
 }
 
 /// The signal to wait for that triggers a shutdown of the server.
