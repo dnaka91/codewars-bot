@@ -1,13 +1,10 @@
 //! Schedulers to execute tasks on a fixed basis with the option to reschedule any time.
 
 use async_trait::async_trait;
-use chrono::prelude::*;
-use chrono::Duration;
-use chrono::{Local, NaiveTime, Weekday};
+use chrono::{prelude::*, Duration, Local, NaiveTime, Weekday};
 use futures::prelude::*;
 use log::{debug, trace};
-use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::time::Duration as TokioDuration;
+use tokio::{sync::mpsc::UnboundedReceiver, time::Duration as TokioDuration};
 
 /// A task that is to be executed. It is used together with a [`Scheduler`] in the [`run`] function
 /// to run any task on a fixed schedule.

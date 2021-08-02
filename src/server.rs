@@ -122,8 +122,7 @@ mod handlers {
     use bytes::Bytes;
     use log::{error, info, trace};
     use tokio::sync::mpsc::UnboundedSender;
-    use warp::http::header;
-    use warp::http::{Response, StatusCode};
+    use warp::http::{header, Response, StatusCode};
 
     use crate::api::slack::event::{self, AppMention, Callback, Event};
 

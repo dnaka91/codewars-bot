@@ -6,8 +6,7 @@ use anyhow::Result;
 use chrono::prelude::*;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tokio::fs;
-use tokio::sync::Mutex;
+use tokio::{fs, sync::Mutex};
 
 const STATE_DIR: &str = concat!("/var/lib/", env!("CARGO_PKG_NAME"));
 const STATE_FILE: &str = concat!("/var/lib/", env!("CARGO_PKG_NAME"), "/state.toml");

@@ -45,16 +45,16 @@
 #![deny(clippy::all, clippy::pedantic)]
 #![warn(clippy::nursery)]
 
-use std::fmt::Write;
-use std::sync::Arc;
+use std::{fmt::Write, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use chrono::prelude::*;
-use chrono::Duration;
+use chrono::{prelude::*, Duration};
 use log::error;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::sync::Mutex;
+use tokio::sync::{
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+    Mutex,
+};
 
 mod api;
 mod commands;
@@ -63,10 +63,11 @@ mod server;
 mod settings;
 mod storage;
 
-use crate::api::slack::event::AppMention;
-use crate::api::{codewars, slack};
-use crate::commands::Command;
-use crate::storage::Repository;
+use crate::{
+    api::{codewars, slack, slack::event::AppMention},
+    commands::Command,
+    storage::Repository,
+};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {

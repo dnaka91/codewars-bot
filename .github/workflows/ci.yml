@@ -1,11 +1,5 @@
 name: CI
-on:
-  pull_request:
-  push:
-    branches:
-      - main
-  schedule:
-    - cron: "0 0 * * 0"
+on: [pull_request, push]
 jobs:
   test:
     name: Test
@@ -33,21 +27,43 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-      - name: Setup Rust
+      - name: Setup Rust (nightly)
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           override: true
+          components: rustfmt
       - name: Run rustfmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: -- --check
+      - name: Setup Rust (stable)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
       - name: Run clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: -- -D warnings
+  cargo-deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        checks:
+          - advisories
+          - bans licenses sources
+    continue-on-error: ${{ matrix.checks == 'advisories' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Check ${{ matrix.checks }}
+        uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          command: check ${{ matrix.checks }}
   publish:
     name: Publish
     runs-on: ubuntu-latest
