@@ -68,8 +68,6 @@ use crate::api::{codewars, slack};
 use crate::commands::Command;
 use crate::storage::Repository;
 
-const SETTINGS_FILE: &str = "settings.toml";
-
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
