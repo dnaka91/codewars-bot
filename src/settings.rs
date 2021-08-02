@@ -1,8 +1,9 @@
 //! Global server settings loaded at start up and used to configure the service and provide required
 //! information for its functionality.
 
-use anyhow::Result;
-use config::{Config, File};
+use std::fs;
+
+use anyhow::{bail, Result};
 use serde::Deserialize;
 
 /// All settings that are loaded at start up and required by the service to function.
@@ -24,10 +25,15 @@ const fn default_port() -> u16 {
 
 /// Load the settings from a TOML file in several common known locations.
 pub fn load() -> Result<Settings> {
-    let mut s = Config::new();
+    let locations = &[
+        concat!("/etc/", env!("CARGO_PKG_NAME"), "/config.toml"),
+        concat!("/app/", env!("CARGO_PKG_NAME"), ".toml"),
+        concat!(env!("CARGO_PKG_NAME"), ".toml"),
+    ];
+    let buf = locations.iter().find_map(|loc| fs::read(loc).ok());
 
-    s.merge(File::with_name("/app/codewars-bot.toml").required(false))?;
-    s.merge(File::with_name("codewars-bot.toml").required(false))?;
-
-    s.try_into().map_err(Into::into)
+    match buf {
+        Some(buf) => Ok(toml::from_slice(&buf)?),
+        None => bail!("failed finding settings"),
+    }
 }

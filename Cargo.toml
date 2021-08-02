@@ -31,11 +31,6 @@ url = { version = "2.2.2", features = ["serde"] }
 warp = { version = "0.3.1", default-features = false }
 yansi = "0.5.0"
 
-[dependencies.config]
-version = "0.11.0"
-default-features = false
-features = ["toml"]
-
 [dependencies.reqwest]
 version = "0.11.4"
 default-features = false
