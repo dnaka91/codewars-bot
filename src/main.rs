@@ -183,7 +183,7 @@ impl<'a> scheduling::Task for NotifyTask {
 }
 
 async fn run_server(port: u16, signing_key: String, webhook_url: String) -> Result<()> {
-    let settings = Repository::load(SETTINGS_FILE).await?;
+    let settings = Repository::load().await?;
     let settings = Arc::new(Mutex::new(settings));
     let (tx, rx) = mpsc::unbounded_channel();
 

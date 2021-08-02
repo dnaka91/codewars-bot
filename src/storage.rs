@@ -1,12 +1,17 @@
 //! Storage for all bot related settings that are persisted as a single TOML file.
 
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::{collections::BTreeSet, path::Path};
 
 use anyhow::Result;
 use chrono::prelude::*;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
+use tokio::sync::Mutex;
+
+const STATE_DIR: &str = concat!("/var/lib/", env!("CARGO_PKG_NAME"));
+const STATE_FILE: &str = concat!("/var/lib/", env!("CARGO_PKG_NAME"), "/state.toml");
+const TEMP_FILE: &str = concat!("/var/lib/", env!("CARGO_PKG_NAME"), "/~temp-state.toml");
 
 /// The repository is the single access point for all the **dynamic** settings regarding this bot.
 /// Any changes to the settings through this repository are directly persisted to the TOML file.
@@ -16,9 +21,6 @@ use tokio::fs;
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Repository {
-    /// Location of the loaded repository.
-    #[serde(skip)]
-    path: PathBuf,
     /// List of users that are watched and used in any Codewars related actions.
     users: BTreeSet<String>,
     /// Whether to notify about any Codewars events related to the watched `users`.
@@ -50,15 +52,13 @@ impl Default for Schedule {
 impl Repository {
     /// Load all settings from the given file location. If the file doesn't exist, a new empty
     /// `Repository` with defaults is created instead.
-    pub async fn load(path: impl AsRef<Path> + Send + Sync) -> Result<Self> {
-        let mut repo = if path.as_ref().exists() {
-            let settings = fs::read(&path).await?;
+    pub async fn load() -> Result<Self> {
+        let repo = if Path::new(STATE_FILE).exists() {
+            let settings = fs::read(STATE_FILE).await?;
             toml::from_slice(&settings)?
         } else {
             Self::default()
         };
-
-        repo.path = path.as_ref().to_owned();
 
         Ok(repo)
     }
@@ -66,9 +66,18 @@ impl Repository {
     /// Persist the current settings to disk. The file location is the same where it was loaded
     /// from before.
     async fn save(&self) -> Result<()> {
+        static LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+        let _guard = LOCK.lock().await;
+
+        fs::create_dir_all(STATE_DIR).await?;
+
         let settings = toml::to_string_pretty(self)?;
 
-        fs::write(&self.path, &settings).await.map_err(Into::into)
+        fs::write(TEMP_FILE, &settings).await?;
+        fs::rename(TEMP_FILE, STATE_FILE).await?;
+
+        Ok(())
     }
 
     /// Add a new user to the list of watched Codewars users. All commands that involve Codewars
@@ -147,25 +156,5 @@ impl Repository {
             self.save().await?;
             Ok(true)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use tempfile::NamedTempFile;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn create() {
-        let file = NamedTempFile::new().unwrap();
-        let mut repo = Repository::load(file.path()).await.unwrap();
-        repo.add_user("dnaka91").await.unwrap();
-        repo.add_user("cschappert").await.unwrap();
-        repo.remove_user("cschappert").await.unwrap();
-
-        let mut users = repo.users();
-        assert_eq!(users.next(), Some("dnaka91"));
-        assert_eq!(users.next(), None);
     }
 }
