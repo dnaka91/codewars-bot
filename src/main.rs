@@ -100,20 +100,6 @@ fn setup_logger() -> Result<()> {
             fern::Dispatch::new()
                 .format(move |out, message, record| {
                     out.finish(format_args!(
-                        "[{}] [{:5}] [{}] {}",
-                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                        record.level(),
-                        record.target(),
-                        message
-                    ));
-                })
-                .level(log::LevelFilter::Info)
-                .chain(fern::log_file("codewars-bot.log")?),
-        )
-        .chain(
-            fern::Dispatch::new()
-                .format(move |out, message, record| {
-                    out.finish(format_args!(
                         "{} {:5} {} > {}",
                         chrono::Local::now().format("%H:%M:%S"),
                         colored(record.level()),
