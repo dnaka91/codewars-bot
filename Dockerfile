@@ -1,17 +1,17 @@
-FROM rust:1.55 as builder
+FROM rust:1.56 as builder
 
 WORKDIR /volume
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends musl-tools=1.2.2-1 \
-    && rustup target add x86_64-unknown-linux-musl
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends musl-tools=1.2.2-1 && \
+    rustup target add x86_64-unknown-linux-musl
 
 COPY assets/ assets/
 COPY src/ src/
 COPY Cargo.lock Cargo.toml ./
 
-RUN cargo build --release --target x86_64-unknown-linux-musl \
-    && strip --strip-all target/x86_64-unknown-linux-musl/release/codewars-bot
+RUN cargo build --release --target x86_64-unknown-linux-musl && \
+    strip --strip-all target/x86_64-unknown-linux-musl/release/codewars-bot
 
 FROM alpine:3.14 as newuser
 
