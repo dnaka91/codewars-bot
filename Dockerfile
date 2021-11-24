@@ -1,17 +1,15 @@
-FROM rust:1.56 as builder
+FROM rust:1.56-alpine as builder
 
 WORKDIR /volume
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends musl-tools=1.2.2-1 && \
-    rustup target add x86_64-unknown-linux-musl
+RUN apk add --no-cache musl-dev=~1.2
 
 COPY assets/ assets/
 COPY src/ src/
 COPY Cargo.lock Cargo.toml ./
 
-RUN cargo build --release --target x86_64-unknown-linux-musl && \
-    strip --strip-all target/x86_64-unknown-linux-musl/release/codewars-bot
+RUN cargo build --release && \
+    strip --strip-all target/release/codewars-bot
 
 FROM alpine:3.14 as newuser
 
@@ -20,7 +18,7 @@ RUN echo "codewars-bot:x:1000:" > /tmp/group && \
 
 FROM scratch
 
-COPY --from=builder /volume/target/x86_64-unknown-linux-musl/release/codewars-bot /bin/
+COPY --from=builder /volume/target/release/codewars-bot /bin/
 COPY --from=newuser /tmp/group /tmp/passwd /etc/
 
 EXPOSE 8080
