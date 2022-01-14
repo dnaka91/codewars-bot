@@ -1,7 +1,7 @@
 //! Events that are sent from Slack to a server endpoint to notify about various changes in a team
 //! chat.
 
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::Sha256;
@@ -44,7 +44,7 @@ pub fn verify_signature(key: &[u8], signature: &str, timestamp: &str, body: &[u8
     mac.update(b":");
     mac.update(body);
 
-    mac.verify(&sig_data)?;
+    mac.verify_slice(&sig_data)?;
 
     Ok(())
 }
