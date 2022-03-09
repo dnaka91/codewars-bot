@@ -1,8 +1,22 @@
+[advisories]
+ignore = [
+    "RUSTSEC-2020-0071",
+    "RUSTSEC-2020-0159",
+]
+
 [licenses]
 allow-osi-fsf-free = "both"
 exceptions = [
     { allow = ["MIT", "ISC", "OpenSSL"], name = "ring", version = "*" },
     { allow = ["MPL-2.0"], name = "webpki-roots", version = "*" },
+]
+
+[[licenses.clarify]]
+name = "encoding_rs"
+version = "*"
+expression = "(Apache-2.0 OR MIT) AND BSD-3-Clause"
+license-files = [
+    { path = "COPYRIGHT", hash = 0x39f8ad31 }
 ]
 
 [[licenses.clarify]]
