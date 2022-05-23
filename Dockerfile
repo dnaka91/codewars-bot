@@ -11,7 +11,7 @@ COPY Cargo.lock Cargo.toml ./
 RUN cargo build --release && \
     strip --strip-all target/release/codewars-bot
 
-FROM alpine:3.15 as newuser
+FROM alpine:3.16.0 as newuser
 
 RUN echo "codewars-bot:x:1000:" > /tmp/group && \
     echo "codewars-bot:x:1000:1000::/dev/null:/sbin/nologin" > /tmp/passwd
