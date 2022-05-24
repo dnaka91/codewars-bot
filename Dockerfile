@@ -1,4 +1,4 @@
-FROM rust:1.60-alpine as builder
+FROM rust:1.61-alpine as builder
 
 WORKDIR /volume
 
@@ -8,10 +8,9 @@ COPY assets/ assets/
 COPY src/ src/
 COPY Cargo.lock Cargo.toml ./
 
-RUN cargo build --release && \
-    strip --strip-all target/release/codewars-bot
+RUN cargo build --release
 
-FROM alpine:3.15 as newuser
+FROM alpine:3.16 as newuser
 
 RUN echo "codewars-bot:x:1000:" > /tmp/group && \
     echo "codewars-bot:x:1000:1000::/dev/null:/sbin/nologin" > /tmp/passwd
