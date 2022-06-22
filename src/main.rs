@@ -71,7 +71,7 @@ use crate::{
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
 
     let opt = settings::load()?;
 

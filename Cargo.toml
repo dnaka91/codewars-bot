@@ -8,11 +8,10 @@ readme = "README.md"
 description = "A Slack bot to report Codewars statistics"
 
 [dependencies]
-anyhow = "1.0.57"
-async-trait = "0.1.53"
+anyhow = "1.0.58"
+async-trait = "0.1.56"
 bytes = "1.1.0"
 chrono = { version = "0.4.19", features = ["serde"] }
-dotenv = "0.15.0"
 fern = "0.6.1"
 futures = "0.3.21"
 hex = "0.4.3"
@@ -30,14 +29,15 @@ toml = "0.5.9"
 url = { version = "2.2.2", features = ["serde"] }
 warp = { version = "0.3.2", default-features = false }
 yansi = "0.5.1"
+dotenvy = "0.15.1"
 
 [dependencies.reqwest]
-version = "0.11.10"
+version = "0.11.11"
 default-features = false
 features = ["gzip", "json", "rustls-tls"]
 
 [dependencies.tokio]
-version = "1.18.2"
+version = "1.19.2"
 features = ["fs", "macros", "rt", "signal", "sync", "time"]
 
 [dev-dependencies]
